@@ -2,9 +2,9 @@
   "name": "viva-p2p-bot",
   "version": "1.0.0",
   "description": "VIVA P2P Exchange Telegram Bot",
-  "main": "bot.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
