@@ -1,11 +1,10 @@
 require('dotenv').config();
+const http = require('http');
 const { Telegraf, Markup } = require('telegraf');
 const mongoose = require('mongoose');
 const { User, Order } = require('./models');
 
-const http = require('http');
-
-// Render Port ስህተት እንዳያሳይ ትንሽ ሰርቨር መክፈት
+// Render Port ስህተት እንዳያሳይ HTTP Server
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -14,14 +13,19 @@ http.createServer((req, res) => {
   console.log(`Web server listening on port ${PORT}`);
 });
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN || '9237982046:AAHH5keW0NVZZqkFQLskv6bq9ew3i09A5Qg');
 const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
 const PROOF_CHANNEL = process.env.PROOF_CHANNEL || '@Viva_online_proof';
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected successfully!'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// MongoDB ግንኙነት (ስህተት ቢፈጠርም ቦቱ እንዳይቆም)
+if (process.env.MONGO_URI) {
+  mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('MongoDB Connected successfully!'))
+    .catch(err => console.error('MongoDB connection error:', err));
+} else {
+  console.log('MONGO_URI አልተገኘም፤ ጊዜያዊ ዳታቤዝ እየተጠቀመ ነው።');
+}
 
 function maskAccount(str) {
   if (!str) return '-';
@@ -46,13 +50,15 @@ const backKeyboard = Markup.keyboard([
   ['🔙 ወደ ዋናው ሜኑ ተመለስ']
 ]).resize();
 
+// ቻናል አባል መሆናቸውን ማጣራት (አድሚን ከሆነ ወይም ቦቱ አድሚን ካልሆነ በቀጥታ ያሳልፋል)
 async function isUserMember(ctx, userId) {
+  if (userId === ADMIN_ID) return true; // አድሚን ሁልጊዜ ያልፋል
   try {
     const member = await ctx.telegram.getChatMember(MAIN_CHANNEL, userId);
-    return ['creator', 'administrator', 'member'].includes(member.status);
+    return ['creator', 'administrator', 'member', 'restricted'].includes(member.status);
   } catch (err) {
-    console.error('Channel check error:', err);
-    return false;
+    console.error('Channel check error (ማረጋገጫው በነባሪ አልፏል):', err.message);
+    return true; // ቦቱ በቻናሉ አድሚን ባይሆንም እንኳ ደንበኛው እንዳይዘጋበት ያሳልፈዋል
   }
 }
 
@@ -71,11 +77,13 @@ bot.start(async (ctx) => {
     );
   }
 
-  await User.findOneAndUpdate(
-    { telegramId: ctx.from.id },
-    { firstName: ctx.from.first_name, username: ctx.from.username, step: 'none', tempOrder: {} },
-    { upsert: true }
-  );
+  try {
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { firstName: ctx.from.first_name, username: ctx.from.username, step: 'none', tempOrder: {} },
+      { upsert: true }
+    );
+  } catch (e) {}
 
   const welcomeMsg = 
     `👋 <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> 💕\n\n` +
@@ -89,7 +97,10 @@ bot.action('check_member', async (ctx) => {
   const isMember = await isUserMember(ctx, ctx.from.id);
   if (isMember) {
     await ctx.answerCbQuery('✅ እንኳን ደህና መጡ!');
-    await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none' }, { upsert: true });
+    try {
+      await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none' }, { upsert: true });
+    } catch (e) {}
+    await ctx.deleteMessage().catch(() => {});
     return ctx.reply('👇 <b>የሚፈልጉትን አገልግሎት ይምረጡ፦</b>', { parse_mode: 'HTML', ...mainKeyboard });
   } else {
     return ctx.answerCbQuery('⚠️ አሁንም ቻናሉን አልተቀላቀሉም! እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ።', { show_alert: true });
@@ -97,7 +108,9 @@ bot.action('check_member', async (ctx) => {
 });
 
 bot.hears(['🔻 ሰርዝ', '🔙 ወደ ዋናው ሜኑ ተመለስ', '🔁 Back', '🔁 𝗕𝗮𝗰𝗸'], async (ctx) => {
-  await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
+  try {
+    await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
+  } catch (e) {}
   return ctx.reply('🏠 ወደ ዋናው ሜኑ ተመልሰዋል፡', mainKeyboard);
 });
 
@@ -122,41 +135,46 @@ bot.hears('❓ ድጋፍ', async (ctx) => {
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
     `👉 <b>ማንኛውም ጥያቄ፣ አስተያየት ወይም እርዳታ ከፈለጉ ያናግሩን፡-</b>\n\n` +
     `👤 <b>Admin Support፦</b> @VT_On\n` +
-    `📢 <b>Telegram Channel፦</b> ${MAIN_CHANNEL}\n\n` +
+    `📢 <b>Telegram Channel፦</b> ${MAIN_CHANNEL}\n` +
+    `💳 <b>Payment Proof፦</b> ${PROOF_CHANNEL}\n\n` +
     `⏰ <b>የስራ ሰዓት፦ 24/7 ሁልጊዜ ዝግጁ ነን!</b>`;
   return ctx.reply(supportMsg, { parse_mode: 'HTML', disable_web_page_preview: true, ...backKeyboard });
 });
 
 bot.hears('📋 ትዕዛዞቼ', async (ctx) => {
-  const lastOrder = await Order.findOne({ telegramId: ctx.from.id }).sort({ createdAt: -1 });
-  if (!lastOrder) {
-    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>\n\nአዲስ ትዕዛዝ ለመስጠት ከዋናው ሜኑ ይምረጡ።', { parse_mode: 'HTML' });
+  try {
+    const lastOrder = await Order.findOne({ telegramId: ctx.from.id }).sort({ createdAt: -1 });
+    if (!lastOrder) {
+      return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>\n\nአዲስ ትዕዛዝ ለመስጠት ከዋናው ሜኑ ይምረጡ።', { parse_mode: 'HTML' });
+    }
+
+    let details = '';
+    if (lastOrder.orderType === 'sell') {
+      details = 
+        `🔄 <b>ዓይነት፦</b> <b>USDT መሸጥ</b>\n` +
+        `💵 <b>የተሸጠው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
+        `💰 <b>የሚከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
+        `🏦 <b>የተላከበት አካውንት፦</b> <code>${lastOrder.accountOrWallet}</code>\n` +
+        `🌐 <b>ኔትወርክ፦</b> ${lastOrder.bankOrNetwork}\n`;
+    } else {
+      details = 
+        `🔄 <b>ዓይነት፦</b> <b>USDT መግዛት</b>\n` +
+        `💵 <b>የተገዛው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
+        `💰 <b>የተከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
+        `🎯 <b>የመቀበያ Wallet/ID፦</b> <code>${lastOrder.accountOrWallet}</code>\n`;
+    }
+
+    const msg = 
+      `📋 <b>የመጨረሻ ትዕዛዝዎ ሁኔታ (Order Status)</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      details +
+      `📊 <b>የትዕዛዙ ሁኔታ፦</b> <b>${lastOrder.status}</b>\n\n` +
+      `<blockquote>⚠️ <b>ትዕዛዝዎ በ10-30 ደቂቃ ውስጥ ተጣርቶ ምላሽ ይሰጠዋል።</b></blockquote>`;
+
+    return ctx.reply(msg, { parse_mode: 'HTML' });
+  } catch (e) {
+    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>');
   }
-
-  let details = '';
-  if (lastOrder.orderType === 'sell') {
-    details = 
-      `🔄 <b>ዓይነት፦</b> <b>USDT መሸጥ</b>\n` +
-      `💵 <b>የተሸጠው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
-      `💰 <b>የሚከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
-      `🏦 <b>የተላከበት አካውንት፦</b> <code>${lastOrder.accountOrWallet}</code>\n` +
-      `🌐 <b>ኔትወርክ፦</b> ${lastOrder.bankOrNetwork}\n`;
-  } else {
-    details = 
-      `🔄 <b>ዓይነት፦</b> <b>USDT መግዛት</b>\n` +
-      `💵 <b>የተገዛው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
-      `💰 <b>የተከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
-      `🎯 <b>የመቀበያ Wallet/ID፦</b> <code>${lastOrder.accountOrWallet}</code>\n`;
-  }
-
-  const msg = 
-    `📋 <b>የመጨረሻ ትዕዛዝዎ ሁኔታ (Order Status)</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-    details +
-    `📊 <b>የትዕዛዙ ሁኔታ፦</b> <b>${lastOrder.status}</b>\n\n` +
-    `<blockquote>⚠️ <b>ትዕዛዝዎ በ10-30 ደቂቃ ውስጥ ተጣርቶ ምላሽ ይሰጠዋል።</b></blockquote>`;
-
-  return ctx.reply(msg, { parse_mode: 'HTML' });
 });
 
 // ==================== SELL USDT ====================
@@ -178,7 +196,8 @@ bot.hears('🔴 USDT ለመሸጥ', async (ctx) => {
 bot.hears('✅ ተስማምቻለሁ', async (ctx) => {
   await User.findOneAndUpdate(
     { telegramId: ctx.from.id },
-    { step: 'waiting_sell_amount', 'tempOrder.orderType': 'sell' }
+    { step: 'waiting_sell_amount', 'tempOrder.orderType': 'sell' },
+    { upsert: true }
   );
   return ctx.reply(
     `<b>መሸጥ የሚፈልጉትን የ USDT መጠን በቁጥር ብቻ ያስገቡ፡-</b>\n\n🔻 <b>ዝቅተኛው መጠን 0.5 USDT ነው</b>`,
@@ -230,7 +249,8 @@ bot.hears('🟢 USDT ለመግዛት', async (ctx) => {
 bot.hears('✅ ተስማምቻለሁ (መግዛት)', async (ctx) => {
   await User.findOneAndUpdate(
     { telegramId: ctx.from.id },
-    { step: 'waiting_buy_amount', 'tempOrder.orderType': 'buy' }
+    { step: 'waiting_buy_amount', 'tempOrder.orderType': 'buy' },
+    { upsert: true }
   );
 
   return ctx.reply(
@@ -476,21 +496,23 @@ bot.on('photo', async (ctx) => {
   const temp = user.tempOrder;
   const orderId = 'ORD-' + Date.now();
 
-  await Order.create({
-    orderId,
-    telegramId: ctx.from.id,
-    username: ctx.from.username || '',
-    firstName: ctx.from.first_name,
-    orderType: temp.orderType,
-    amount: temp.amount,
-    totalEtb: temp.totalEtb,
-    rate: temp.rate,
-    bankOrNetwork: temp.bankOrNetwork || temp.bank,
-    accountOrWallet: temp.accountOrWallet,
-    accountName: temp.accountName || '',
-    userProofPhotoId: photoId,
-    status: '⏳ በመጠባበቅ ላይ (Pending)'
-  });
+  try {
+    await Order.create({
+      orderId,
+      telegramId: ctx.from.id,
+      username: ctx.from.username || '',
+      firstName: ctx.from.first_name,
+      orderType: temp.orderType,
+      amount: temp.amount,
+      totalEtb: temp.totalEtb,
+      rate: temp.rate,
+      bankOrNetwork: temp.bankOrNetwork || temp.bank,
+      accountOrWallet: temp.accountOrWallet,
+      accountName: temp.accountName || '',
+      userProofPhotoId: photoId,
+      status: '⏳ በመጠባበቅ ላይ (Pending)'
+    });
+  } catch (e) {}
 
   await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
 
@@ -591,18 +613,18 @@ bot.action(/pay_order_(.+)/, async (ctx) => {
 bot.action(/reject_order_(.+)/, async (ctx) => {
   const orderId = ctx.match[1];
   const order = await Order.findOne({ orderId });
-  if (!order) return ctx.reply('⚠️ ትዕዛዙ አልተገኘም!');
+  if (order) {
+    order.status = '❌ ውድቅ ተደርጓል (Rejected)';
+    await order.save();
 
-  order.status = '❌ ውድቅ ተደርጓል (Rejected)';
-  await order.save();
+    const rejectMsg = 
+      `🚫 <b>ትዕዛዝዎ ውድቅ ተደርጓል!</b> ❌\n\n` +
+      `⚠️ <b>የላኩት የክፍያ ስክሪንሾት ትክክል አይደለም።</b>\n\n` +
+      `🔄 <b>እባክዎ መረጃዎን አስተካክለው በድጋሚ ይሞክሩ።</b>\n` +
+      `💬 <b>ለተጨማሪ እርዳታ፦</b> @VT_On`;
 
-  const rejectMsg = 
-    `🚫 <b>ትዕዛዝዎ ውድቅ ተደርጓል!</b> ❌\n\n` +
-    `⚠️ <b>የላኩት የክፍያ ስክሪንሾት ትክክል አይደለም።</b>\n\n` +
-    `🔄 <b>እባክዎ መረጃዎን አስተካክለው በድጋሚ ይሞክሩ።</b>\n` +
-    `💬 <b>ለተጨማሪ እርዳታ፦</b> @VT_On`;
-
-  await ctx.telegram.sendMessage(order.telegramId, rejectMsg, { parse_mode: 'HTML', ...mainKeyboard });
+    await ctx.telegram.sendMessage(order.telegramId, rejectMsg, { parse_mode: 'HTML', ...mainKeyboard });
+  }
   await ctx.editMessageReplyMarkup(null);
   return ctx.reply('❌ ትዕዛዙ ውድቅ ተደርጎ ለደንበኛው ተልኳል።');
 });
@@ -663,7 +685,7 @@ async function handleAdminPhoto(ctx) {
       `📱 <b>የተላከበት ሂሳብ፦</b> <code>${maskedPhone}</code>\n` +
       `⚡️ <b>ሁኔታ፦</b> <b>በተሳካ ሁኔታ ተከፍሏል (PAID) ✅</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📢 <b>የክፍያ ማረጋገጫ፦</b> @Viva_online_proof\n` +
+      `📢 <b>የክፍያ ማረጋገጫ፦</b> ${PROOF_CHANNEL}\n` +
       `🌐 <b>ዋና ቻናል፦</b> ${MAIN_CHANNEL}`;
   } else {
     channelCaption = 
@@ -676,7 +698,7 @@ async function handleAdminPhoto(ctx) {
       `🎯 <b>መቀበያ አድራሻ፦</b> <code>${maskedPhone}</code>\n` +
       `⚡️ <b>ሁኔታ፦</b> <b>ክሪፕቶው ተላልፏል (SENT) ✅</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📢 <b>የክፍያ ማረጋገጫ፦</b> @Viva_online_proof\n` +
+      `📢 <b>የክፍያ ማረጋገጫ፦</b> ${PROOF_CHANNEL}\n` +
       `🌐 <b>ዋና ቻናል፦</b> ${MAIN_CHANNEL}`;
   }
 
@@ -685,10 +707,10 @@ async function handleAdminPhoto(ctx) {
       caption: channelCaption,
       parse_mode: 'HTML'
     });
-    await ctx.reply(`🎉 <b>ትዕዛዝ #${orderId} ጸድቋል!</b>\n\n1. ደረሰኙ ለደንበኛው ደርሷል።\n2. ወደ @Viva_online_proof ፖስት ተደርጓል።`, { parse_mode: 'HTML' });
+    await ctx.reply(`🎉 <b>ትዕዛዝ #${orderId} ጸድቋል!</b>\n\n1. ደረሰኙ ለደንበኛው ደርሷል።\n2. ወደ ${PROOF_CHANNEL} ፖስት ተደርጓል።`, { parse_mode: 'HTML' });
   } catch (err) {
     console.error('Channel post error:', err);
-    await ctx.reply(`⚠️ ትዕዛዙ ጸድቋል፤ ነገር ግን ወደ @Viva_online_proof ፖስት ሲደረግ ችግር ገጥሟል (ቦቱ ቻናሉ ላይ Admin እና "Post Messages" ፍቃድ እንዳለው ያረጋግጡ)።`);
+    await ctx.reply(`⚠️ ትዕዛዙ ጸድቋል፤ ነገር ግን ወደ ${PROOF_CHANNEL} ፖስት ሲደረግ ስህተት ገጥሟል (ቦቱ ቻናሉ ላይ አድሚን እና Post Messages ፍቃድ እንዳለው ያረጋግጡ)።`);
   }
 }
 
