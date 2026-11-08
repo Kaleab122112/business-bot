@@ -1,11 +1,12 @@
 import os
+import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from pymongo import MongoClient
 
-# Render ጤናማ መሆኑን የሚያረጋግጥበት Dummy Web Server
+# Render Web Service ጤናማ መሆኑን የሚያረጋግጥበት አነስተኛ ሰርቨር
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -21,11 +22,9 @@ def run_server():
     server = HTTPServer(("0.0.0.0", port), SimpleHandler)
     server.serve_forever()
 
-# ሚስጥራዊ ቁልፎች
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 
-# MongoDB ግንኙነት
 client = MongoClient(MONGO_URI)
 db = client["business_db"]
 users_col = db["users"]
@@ -64,13 +63,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("እባክዎ ከታች ያሉትን ምርጫዎች ይጠቀሙ።")
 
-if __name__ == "__main__":
-    t = threading.Thread(target=run_server, daemon=True)
-    t.start()
-
+async def main():
     print("Bot is starting...")
-    # job_queue እንዳይፈጠር None አድርገነዋል
     app = ApplicationBuilder().token(BOT_TOKEN).job_queue(None).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.run_polling()
+    
+    # ቦቱን በይፋ ማስጀመር
+    async with app:
+        await app.start()
+        await app.updater.start_polling()
+        # ላልተወሰነ ጊዜ ነቅቶ እንዲቆይ ማድረግ
+        while True:
+            await asyncio.sleep(3600)
+
+if __name__ == "__main__":
+    t = threading.Thread(target=run_server, daemon=True)
+    t.start()
+    asyncio.run(main())
