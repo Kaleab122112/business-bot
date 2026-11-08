@@ -1,11 +1,12 @@
 import os
+import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from pymongo import MongoClient
 
-# Render Health Check Dummy Server
+# Render Web Service Port dummy server
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -62,21 +63,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("እባክዎ ከታች ያሉትን ምርጫዎች ይጠቀሙ።")
 
-def main():
+async def main():
     print("Bot is starting...")
-    app = (
-        ApplicationBuilder()
-        .token(BOT_TOKEN)
-        .job_queue(None)
-        .concurrent_updates(True)
-        .build()
-    )
+    app = ApplicationBuilder().token(BOT_TOKEN).job_queue(None).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Python 3.14 asyncio polling
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(drop_pending_updates=True)
     
-    app.run_polling(drop_pending_updates=True)
+    stop_event = asyncio.Event()
+    await stop_event.wait()
 
 if __name__ == "__main__":
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
-    main()
+    asyncio.run(main())
