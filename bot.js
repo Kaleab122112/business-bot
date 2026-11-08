@@ -3,6 +3,17 @@ const { Telegraf, Markup } = require('telegraf');
 const mongoose = require('mongoose');
 const { User, Order } = require('./models');
 
+const http = require('http');
+
+// Render Port ስህተት እንዳያሳይ ትንሽ ሰርቨር መክፈት
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('VIVA P2P Bot is Running 24/7!\n');
+}).listen(PORT, () => {
+  console.log(`Web server listening on port ${PORT}`);
+});
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
