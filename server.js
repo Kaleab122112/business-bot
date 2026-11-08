@@ -5,7 +5,6 @@ const { MongoClient } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Render Web Service ሁልጊዜ ነቅቶ እንዲሰራ የሚያደርግ Dummy Route
 app.get('/', (req, res) => {
   res.send('Viva P2P Bot is Live and Healthy!');
 });
@@ -14,7 +13,6 @@ app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
 
-// Secrets
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -26,16 +24,14 @@ if (!BOT_TOKEN || !MONGO_URI) {
 const bot = new Telegraf(BOT_TOKEN);
 const client = new MongoClient(MONGO_URI);
 
-let db, usersCol, ordersCol, settingsCol;
+let db, usersCol, ordersCol;
 
-// MongoDB ማገናኘት
 async function connectDB() {
   try {
     await client.connect();
     db = client.db('viva_p2p_db');
     usersCol = db.collection('users');
     ordersCol = db.collection('orders');
-    settingsCol = db.collection('settings');
     console.log('MongoDB successfully connected!');
   } catch (err) {
     console.error('MongoDB connection error:', err);
@@ -43,22 +39,33 @@ async function connectDB() {
 }
 connectDB();
 
-// ተመን ማምጣት
-async function getRates() {
-  let rates = await settingsCol.findOne({ type: 'rates' });
-  if (!rates) {
-    rates = { type: 'rates', buy_rate: 125.0, sell_rate: 128.0 };
-    await settingsCol.insertOne(rates);
+// የተጠቃሚዎች ሁኔታ መከታተያ (State)
+const userSessions = {};
+
+// የተመን ማስያ ፈንክሽን (Tiered Calculation)
+function calculateRate(amount) {
+  if (amount >= 0.5 && amount <= 0.99) {
+    return 175;
+  } else if (amount >= 1.0 && amount <= 15.0) {
+    return 180;
+  } else if (amount >= 16.0) {
+    return 182;
   }
-  return rates;
+  return 0; // ከ 0.5 በታች ከሆነ
 }
 
-// ጊዜያዊ የትዕዛዝ መረጃ ማስቀመጫ
-const userSessions = {};
+// ዋናው ሜኑ (Main Keyboard)
+const mainMenu = Markup.keyboard([
+  ['💵 USDT መግዛት', '💰 USDT መሸጥ'],
+  ['📊 የዛሬ ተመን', '📜 የእኔ ትዕዛዞች'],
+  ['📞 ድጋፍ / Support', 'ℹ️ ስለ አሰራሩ']
+]).resize();
 
 // /start ትዕዛዝ
 bot.start(async (ctx) => {
   const user = ctx.from;
+  delete userSessions[ctx.from.id];
+
   try {
     if (usersCol) {
       await usersCol.updateOne(
@@ -73,100 +80,114 @@ bot.start(async (ctx) => {
 
   const welcomeText = 
     `👋 ሰላም ${user.first_name}!\n\n` +
-    `ወደ **Viva P2P Exchange** በደህና መጡ።\n` +
+    `ወደ <b>Viva P2P Exchange</b> በደህና መጡ።\n` +
     `ፈጣን እና አስተማማኝ የ P2P የምንዛሬ አገልግሎት።\n\n` +
     `ለመጀመር ከታች ካሉት ምርጫዎች አንዱን ይጫኑ፦`;
 
-  return ctx.replyWithMarkdown(
-    welcomeText,
+  return ctx.replyWithHTML(welcomeText, mainMenu);
+});
+
+// 💰 USDT መሸጥ ሲጫን የሚመጣው ገጽ (ያልከው ገጽ እዚህ ገብቷል)
+bot.hears('💰 USDT መሸጥ', async (ctx) => {
+  userSessions[ctx.from.id] = { step: 'awaiting_agreement', action: 'sell' };
+
+  const sellPageMsg = 
+    "💵 <b>የ USDT መሸጫ ገጽ (SELL USDT)</b>\n" +
+    "━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+    "📊 <b>የዛሬ የመሸጫ ተመኖች (Rates)፦</b>\n\n" +
+    "• 🔸 <b>ከ 0.5 – 0.99 USDT፦</b> <b>175 ETB</b>\n" +
+    "• 🔹 <b>ከ 1.0 – 15.0 USDT፦</b> <b>180 ETB</b>\n" +
+    "• 💎 <b>ከ 16.0 USDT በላይ፦</b> <b>182 ETB</b>\n\n" +
+    "📌 <b>ዝቅተኛ የመሸጫ መጠን፦</b> <b>0.5 USDT</b>\n\n" +
+    "<blockquote><b>✍️ የሚሸጡትን መጠን ሲያስገቡ ቦቱ በራሱ አባዝቶ የሚቀበሉትን ትክክለኛ ብር ያሳየዎታል።</b></blockquote>\n\n" +
+    "👉 <b>ለመቀጠል «✅ ተስማምቻለሁ» የሚለውን ይጫኑ፡-</b>";
+
+  return ctx.replyWithHTML(
+    sellPageMsg,
     Markup.keyboard([
-      ['💵 USDT መግዛት', '💰 USDT መሸጥ'],
-      ['📊 የዛሬ ተመን', '📜 የእኔ ትዕዛዞች'],
-      ['📞 ድጋፍ / Support', 'ℹ️ ስለ አሰራሩ']
+      ['✅ ተስማምቻለሁ'],
+      ['🔻 ሰርዝ']
     ]).resize()
   );
 });
 
-// የዛሬ ተመን
-bot.hears('📊 የዛሬ ተመን', async (ctx) => {
-  const rates = await getRates();
-  const msg = 
-    `📊 *የዛሬው Viva P2P የምንዛሬ ተመን*\n\n` +
-    `🔹 እኛ የምንገዛበት (Buy): *${rates.buy_rate} ETB*\n` +
-    `🔸 እኛ የምንሸጥበት (Sell): *${rates.sell_rate} ETB*\n\n` +
-    `⚠️ _ተመኑ እንደ ገበያው ሁኔታ በማንኛውም ጊዜ ሊለወጥ ይችላል።_`;
-  ctx.replyWithMarkdown(msg);
-});
+// «✅ ተስማምቻለሁ» ሲጫን
+bot.hears('✅ ተስማምቻለሁ', (ctx) => {
+  const session = userSessions[ctx.from.id];
+  if (!session || session.step !== 'awaiting_agreement') {
+    return ctx.replyWithHTML('እባክዎ መጀመሪያ ከዋናው ሜኑ <b>💰 USDT መሸጥ</b> የሚለውን ይምረጡ።', mainMenu);
+  }
 
-// USDT መግዛት
-bot.hears('💵 USDT መግዛት', async (ctx) => {
-  const rates = await getRates();
-  userSessions[ctx.from.id] = { action: 'buy' };
-  ctx.replyWithMarkdown(
-    `🛒 *USDT መግዛት ይፈልጋሉ*\n\n` +
-    `የመሸጫ ተመን፡ *${rates.sell_rate} ETB*\n\n` +
-    `እባክዎ የሚፈልጉትን የ USDT መጠን በቁጥር ብቻ ይጻፉ (ለምሳሌ: \`50\` ወይም \`100\`)፦`
+  session.step = 'awaiting_amount';
+  return ctx.replyWithHTML(
+    "✍️ <b>እባክዎ የሚሸጡትን የ USDT መጠን ያስገቡ፦</b>\n\n" +
+    "<i>(ለምሳሌ፦ 0.8፣ 5፣ ወይም 20)</i>\n" +
+    "📌 <i>ዝቅተኛ መጠን 0.5 USDT ነው</i>",
+    Markup.keyboard([['🔻 ሰርዝ']]).resize()
   );
 });
 
-// USDT መሸጥ
-bot.hears('💰 USDT መሸጥ', async (ctx) => {
-  const rates = await getRates();
-  userSessions[ctx.from.id] = { action: 'sell' };
-  ctx.replyWithMarkdown(
-    `💼 *USDT መሸጥ ይፈልጋሉ*\n\n` +
-    `የመግዣ ተመን፡ *${rates.buy_rate} ETB*\n\n` +
-    `እባክዎ የሚሸጡትን የ USDT መጠን በቁጥር ብቻ ይጻፉ (ለምሳሌ: \`50\` ወይም \`100\`)፦`
-  );
+// «🔻 ሰርዝ» ሲጫን
+bot.hears('🔻 ሰርዝ', (ctx) => {
+  delete userSessions[ctx.from.id];
+  return ctx.replyWithHTML("❌ <b>ግብይቱ ተሰርዟል። ወደ ዋናው ሜኑ ተመልሰዋል።</b>", mainMenu);
 });
 
-// የተጠቃሚው የቁጥር ግብዓት መቀበያ
+// የቁጥር ግብዓት እና ስሌት መቀበያ
 bot.on('text', async (ctx, next) => {
-  const text = ctx.message.text;
+  const text = ctx.message.text.trim();
   const userId = ctx.from.id;
   const session = userSessions[userId];
 
-  if (session && !isNaN(text) && Number(text) > 0) {
+  if (session && session.step === 'awaiting_amount') {
     const amount = parseFloat(text);
-    const rates = await getRates();
-    const rate = session.action === 'buy' ? rates.sell_rate : rates.buy_rate;
+
+    if (isNaN(amount) || amount < 0.5) {
+      return ctx.replyWithHTML("⚠️ <b>ስህተት፦</b> እባክዎ ከ <b>0.5 USDT</b> ጀምሮ ትክክለኛ ቁጥር ያስገቡ።");
+    }
+
+    const rate = calculateRate(amount);
     const totalEtb = amount * rate;
 
     session.amount = amount;
-    session.totalEtb = totalEtb;
     session.rate = rate;
+    session.totalEtb = totalEtb;
+    session.step = 'awaiting_confirm';
 
-    const actionTitle = session.action === 'buy' ? 'መግዛት' : 'መሸጥ';
+    const summaryMsg = 
+      "📝 <b>የትዕዛዝዎ ማጠቃለያ (Order Summary)</b>\n" +
+      "━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+      `🔹 <b>የ USDT መጠን፦</b> <code>${amount} USDT</code>\n` +
+      `🔹 <b>የተሰላበት ተመን፦</b> <code>${rate} ETB</code>\n` +
+      `💵 <b>የሚቀበሉት ጠቅላላ ብር፦</b> <code>${totalEtb.toLocaleString()} ETB</code>\n\n` +
+      "ትዕዛዝዎን ለማረጋገጥ ከታች ያለውን ይጫኑ፦";
 
-    return ctx.replyWithMarkdown(
-      `📝 *የትዕዛዝ ዝርዝር (${actionTitle})*\n\n` +
-      `🔹 የ USDT መጠን: *${amount} USDT*\n` +
-      `🔹 ተመን: *${rate} ETB*\n` +
-      `💵 ጠቅላላ ክፍያ: *${totalEtb.toLocaleString()} ETB*\n\n` +
-      `ትዕዛዝዎን ለማረጋገጥ ከታች ያለውን ይጫኑ፦`,
+    return ctx.replyWithHTML(
+      summaryMsg,
       Markup.inlineKeyboard([
-        [Markup.button.callback('✅ ትዕዛዝ አረጋግጥ', 'confirm_order')],
-        [Markup.button.callback('❌ ሰርዝ', 'cancel_order')]
+        [Markup.button.callback('✅ አረጋግጥ እና ቀጥል', 'confirm_sell_order')],
+        [Markup.button.callback('❌ ሰርዝ', 'cancel_sell_order')]
       ])
     );
   }
+
   return next();
 });
 
-// የማረጋገጫ ቁልፎች
-bot.action('confirm_order', async (ctx) => {
+// አረጋግጥ ሲጫን ወደ ዳታቤዝ ማስቀመጥ
+bot.action('confirm_sell_order', async (ctx) => {
   const userId = ctx.from.id;
   const session = userSessions[userId];
 
   if (!session || !session.amount) {
-    return ctx.reply('የትዕዛዝ መረጃ አልተገኘም። እባክዎ እንደገና ይሞክሩ።');
+    return ctx.reply('የትዕዛዝ መረጃ አልተገኘም። እባክዎ እንደገና ይጀምሩ።');
   }
 
   const order = {
     user_id: userId,
     username: ctx.from.username,
     name: ctx.from.first_name,
-    type: session.action,
+    type: 'SELL',
     amount: session.amount,
     rate: session.rate,
     total_etb: session.totalEtb,
@@ -178,54 +199,63 @@ bot.action('confirm_order', async (ctx) => {
   delete userSessions[userId];
 
   await ctx.editMessageText(
-    `✅ *ትዕዛዝዎ በተሳካ ሁኔታ ተመዝግቧል!*\n` +
-    `የትዕዛዝ ቁጥር: \`${res.insertedId}\`\n\n` +
-    `እባክዎ ክፍያ ለመፈጸም እና የክፍያ ደረሰኝ (Screenshot) ለመላክ አድሚናችንን ያነጋግሩ፦ @VivaSupport`,
-    { parse_mode: 'Markdown' }
+    `✅ <b>ትዕዛዝዎ በተሳካ ሁኔታ ተመዝግቧል!</b>\n` +
+    `የትዕዛዝ መለያ (ID)፦ <code>${res.insertedId}</code>\n\n` +
+    `USDT የሚልኩበትን አድራሻ ለመቀበል እና ገንዘብዎን በባንክ/ቴሌብር ለመቀበል እባክዎ አድሚኑን ያነጋግሩ፦ @VivaSupport`,
+    { parse_mode: 'HTML' }
   );
+
+  return ctx.replyWithHTML("ወደ ዋናው ገጽ ለመመለስ ከታች ያለውን ይጠቀሙ፦", mainMenu);
 });
 
-bot.action('cancel_order', async (ctx) => {
+bot.action('cancel_sell_order', async (ctx) => {
   delete userSessions[ctx.from.id];
   await ctx.editMessageText('❌ ትዕዛዙ ተሰርዟል።');
+  return ctx.replyWithHTML("ወደ ዋናው ገጽ ተመልሰዋል፦", mainMenu);
+});
+
+// የዛሬ ተመን ማሳያ
+bot.hears('📊 የዛሬ ተመን', (ctx) => {
+  const msg = 
+    "📊 <b>የዛሬው Viva P2P የመሸጫ ተመኖች፦</b>\n\n" +
+    "• 🔸 0.5 – 0.99 USDT ➔ <b>175 ETB</b>\n" +
+    "• 🔹 1.0 – 15.0 USDT ➔ <b>180 ETB</b>\n" +
+    "• 💎 16.0 USDT በላይ ➔ <b>182 ETB</b>\n";
+  return ctx.replyWithHTML(msg);
 });
 
 // የእኔ ትዕዛዞች
 bot.hears('📜 የእኔ ትዕዛዞች', async (ctx) => {
   const orders = await ordersCol.find({ user_id: ctx.from.id }).sort({ _id: -1 }).limit(5).toArray();
   if (orders.length === 0) {
-    return ctx.reply('እስካሁን ያስገቡት ምንም አይነት ትዕዛዝ የለም።');
+    return ctx.reply('እስካሁን ምንም አይነት ትዕዛዝ አላስገቡም።');
   }
 
-  let text = '📜 *የቅርብ ጊዜ ትዕዛዞችዎ፦*\n\n';
+  let text = '📜 <b>የቅርብ ጊዜ ትዕዛዞችዎ፦</b>\n\n';
   orders.forEach((o) => {
-    text += `• ${o.type.toUpperCase()}: ${o.amount} USDT (${o.total_etb.toLocaleString()} ETB) - _${o.status}_\n`;
+    text += `• ${o.type}: ${o.amount} USDT (${o.total_etb.toLocaleString()} ETB) — <i>${o.status}</i>\n`;
   });
-  ctx.replyWithMarkdown(text);
+  return ctx.replyWithHTML(text);
 });
 
 // ድጋፍ እና አሰራር
 bot.hears('📞 ድጋፍ / Support', (ctx) => {
-  ctx.reply('ለማንኛውም ጥያቄ አድሚናችንን ያነጋግሩ፦ @VivaSupport');
+  return ctx.reply('ለማንኛውም እርዳታ አድሚናችንን ያነጋግሩ፦ @VivaSupport');
 });
 
 bot.hears('ℹ️ ስለ አሰራሩ', (ctx) => {
-  ctx.replyWithMarkdown(
-    `ℹ️ *Viva P2P Exchange አሰራር*\n\n` +
-    `1. የሚገዙትን ወይም የሚሸጡትን መጠን ያስገቡ።\n` +
-    `2. የተሰጠውን የባንክ ሂሳብ በመጠቀም ክፍያ ይፈጽሙ።\n` +
-    `3. የከፈሉበትን ደረሰኝ ለአድሚን ይላኩ።\n` +
-    `4. ክፍያው ሲረጋገጥ በደቂቃዎች ውስጥ ወደ ዋሌትዎ ይላካል!`
+  return ctx.replyWithHTML(
+    "ℹ️ <b>Viva P2P Exchange አሰራር፦</b>\n\n" +
+    "1. የሚሸጡትን መጠን ያስገቡ።\n" +
+    "2. ቦቱ በተመኑ መሰረት የሚቀበሉትን ትክክለኛ ብር ያሰላል።\n" +
+    "3. ትዕዛዝ ሲያረጋግጡ USDT የሚልኩበት የዋሌት አድራሻ ይሰጥዎታል።\n" +
+    "4. ክፍያው ሲረጋገጥ ብሩ በቴሌብር ወይም በባንክ ሂሳብዎ ይገባል!"
   );
 });
 
-// ቦቱን ማስጀመር
-bot.launch({
-  dropPendingUpdates: true
-}).then(() => {
-  console.log('Telegram P2P Bot started successfully!');
+bot.launch({ dropPendingUpdates: true }).then(() => {
+  console.log('Telegram P2P Bot started with tiered sell rates!');
 });
 
-// መተግበሪያው ሲቆም በሰላም እንዲዘጋ
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
