@@ -5,12 +5,16 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from pymongo import MongoClient
 
-# Render Web Service Port እንዲያገኝ Dummy Server
+# Render ጤናማ መሆኑን የሚያረጋግጥበት Dummy Web Server
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"Bot is running successfully!")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
 
 def run_server():
     port = int(os.environ.get("PORT", 8080))
@@ -61,12 +65,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("እባክዎ ከታች ያሉትን ምርጫዎች ይጠቀሙ።")
 
 if __name__ == "__main__":
-    # Render እንዳይዘጋ ሰርቨሩን ከበስተጀርባ ማስኬድ
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
 
     print("Bot is starting...")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    # job_queue እንዳይፈጠር None አድርገነዋል
+    app = ApplicationBuilder().token(BOT_TOKEN).job_queue(None).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
