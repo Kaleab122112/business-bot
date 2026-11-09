@@ -117,8 +117,8 @@ async function sendJoinPrompt(ctx) {
 // ዋናውን ሜኑ ከፎቶ ጋር የሚያሳይ ተግባር
 async function sendMainMenu(ctx) {
   const welcomeCaption = 
-    `<tg-emoji emoji-id="5413366476251866707">👋</tg-emoji> <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> <tg-emoji emoji-id="6266794310671275367">💕</tg-emoji>\n\n` +
-    `<tg-emoji emoji-id="5965043124068687455">🔐</tg-emoji> <b>ደህንነቱ የተጠበቀ እና ⚡️ እጅግ ፈጣን የ USDT 💲 መገበያያ ቤት!</b>\n\n` +
+    `<tg-emoji emoji-id="5373192254108211756">👋</tg-emoji> <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> <tg-emoji emoji-id="5456496795536349380">💕</tg-emoji>\n\n` +
+    `<tg-emoji emoji-id="5971889748615105853">🔐</tg-emoji> <b>ደህንነቱ የተጠበቀ እና <tg-emoji emoji-id="5978875706195578194">⚡️</tg-emoji> እጅግ ፈጣን የ USDT <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> መገበያያ ቤት!</b>\n\n` +
     `<tg-emoji emoji-id="5406745015365943482">👇</tg-emoji> <b>የሚፈልጉትን አገልግሎት ከታች ካሉት አማራጮች ይምረጡ፡-</b>`;
 
   try {
