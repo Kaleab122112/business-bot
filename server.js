@@ -1,23 +1,21 @@
 const http = require('http');
 const { Telegraf, Markup } = require('telegraf');
 
-// 1. Web Server (Render ፖርት እንዳይዘጋ)
+// 1. Render Port እንዳይዘጋ Web Server
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Viva P2P Exchange Bot Active 24/7\n');
 }).listen(PORT, () => {
-  console.log(`Web Server listening on port ${PORT}`);
+  console.log(`Port active: ${PORT}`);
 });
 
-// 2. Settings
+// 2. Configurations
 const BOT_TOKEN = process.env.BOT_TOKEN || '9237982046:AAHDkJ8ooslZJVpoAm2FvSj0IMeLKBAco9Y';
 const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
-const PROOF_CHANNEL = process.env.PROOF_CHANNEL || '@Viva_online_proof';
 
-const bot = new Telegraf(BOT_TOKEN);
-
+const bo
 const userState = new Map();
 const allOrders = new Map();
 
@@ -28,14 +26,7 @@ function getState(id) {
   return userState.get(id);
 }
 
-function maskAccount(str) {
-  if (!str) return '-';
-  const clean = str.toString().trim();
-  if (clean.length <= 4) return '****';
-  return `${clean.slice(0, 4)}*****${clean.slice(-2)}`;
-}
-
-// ኪቦርድ በትክክል በስክሪኑ ላይ ከሚታዩት ስሞችና ኢሞጂዎች ጋር የተጣጣመ
+// ኪቦርድ በስክሪኑ ላይ ካሉት ጽሑፎች ጋር በትክክል የተጣጣመ
 const mainKeyboard = Markup.keyboard([
   ['🔴 USDT ለመሸጥ', '🟢 USDT ለመግዛት'],
   ['📊 የዛሬ ዋጋ', '📋 ትዕዛዞቼ'],
@@ -59,12 +50,8 @@ bot.start(async (ctx) => {
   return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...mainKeyboard });
 });
 
-// ==================== CANCEL & BACK ====================
-bot.hears([
-  '🔻 ሰርዝ', 'ሰርዝ',
-  '🔙 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ',
-  '🏠 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ'
-], async (ctx) => {
+// ==================== BACK & CANCEL ====================
+bot.hears(['🔻 ሰርዝ', 'ሰርዝ', '🔙 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ'], async (ctx) => {
   const state = getState(ctx.from.id);
   state.step = 'none';
   state.data = {};
@@ -72,7 +59,7 @@ bot.hears([
 });
 
 // ==================== RATES (የዛሬ ዋጋ) ====================
-bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ', 'ዋጋ', 'Rate'], async (ctx) => {
+bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ'], async (ctx) => {
   const rateMsg = 
     `📊 <b>የዛሬ የምንዛሬ ተመን (TODAY'S RATES)</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -88,23 +75,22 @@ bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ', 'ዋጋ', 'Rate'], async
 });
 
 // ==================== SUPPORT (ድጋፍ) ====================
-bot.hears(['❓ ድጋፍ', '❓ ድጋፍ', 'ድጋፍ', 'Support', 'እርዳታ'], async (ctx) => {
+bot.hears(['❓ ድጋፍ', '❓ ድጋፍ', 'ድጋፍ', 'Support'], async (ctx) => {
   const supportMsg = 
     `📞 <b>የደንበኞች ድጋፍ እና ማህበረሰብ</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
     `👉 <b>ማንኛውም ጥያቄ ወይም እርዳታ ከፈለጉ ያናግሩን፡-</b>\n\n` +
     `👤 <b>Admin Support፦</b> @VT_On\n` +
-    `📢 <b>Telegram Channel፦</b> ${MAIN_CHANNEL}\n` +
-    `💳 <b>Payment Proof Channel፦</b> ${PROOF_CHANNEL}\n\n` +
+    `📢 <b>Telegram Channel፦</b> ${MAIN_CHANNEL}\n\n` +
     `⏰ <b>የስራ ሰዓት፦ 24/7 ሁልጊዜ ዝግጁ ነን!</b>`;
   return ctx.reply(supportMsg, { parse_mode: 'HTML', disable_web_page_preview: true, ...backKeyboard });
 });
 
 // ==================== ORDERS (ትዕዛዞቼ) ====================
-bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ', 'Orders'], async (ctx) => {
+bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ'], async (ctx) => {
   const userOrders = Array.from(allOrders.values()).filter(o => o.telegramId === ctx.from.id);
   if (userOrders.length === 0) {
-    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>\n\nአዲስ ትዕዛዝ ለመስጠት ከዋናው ሜኑ ይምረጡ።', { parse_mode: 'HTML' });
+    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>', { parse_mode: 'HTML' });
   }
 
   const lastOrder = userOrders[userOrders.length - 1];
@@ -134,7 +120,7 @@ bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ', 'Orders'], async (ctx) => 
   return ctx.reply(msg, { parse_mode: 'HTML' });
 });
 
-// ==================== 🔴 SELL USDT ====================
+// ==================== 🔴 SELL USDT FLOW ====================
 bot.hears(['🔴 USDT ለመሸጥ', 'USDT ለመሸጥ'], async (ctx) => {
   const msg = 
     `💵 <b>የ USDT መሸጫ ገጽ (SELL USDT)</b>\n` +
@@ -183,7 +169,7 @@ bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE', '�
   );
 });
 
-// ==================== 🟢 BUY USDT ====================
+// ==================== 🟢 BUY USDT FLOW ====================
 bot.hears(['🟢 USDT ለመግዛት', 'USDT ለመግዛት'], async (ctx) => {
   const msg = 
     `📈 <b>የዛሬ የ USDT መግዣ ተመን (Rate)</b>\n\n` +
@@ -333,7 +319,7 @@ bot.on('text', async (ctx) => {
       `⏳ <b>የትዕዛዝ ጥያቄዎ ወደ Admin ተልኳል!</b>\n\n` +
       `💵 <b>መጠን፦</b> <b>${amount} USDT</b> (${totalEtb} ETB)\n\n` +
       `👉 <b>Admin ጥያቄዎን ተመልክቶ ፍቃድ እስከሚሰጥ እባክዎ በትዕግስት ይጠብቁ...</b>`,
-      { parse_mode: 'HTML', ...Markup.keyboard([['🔙 ወደ ዋናው ሜኑ ተመለስ']]).resize() }
+      { parse_mode: 'HTML', ...backKeyboard }
     );
 
     const adminMsg = 
@@ -399,14 +385,54 @@ bot.on('text', async (ctx) => {
 
     return ctx.reply(payAccounts, { parse_mode: 'HTML', ...cancelKeyboard });
   }
+
+  // ያልታወቀ ጽሑፍ ሲመጣ በስህተት እንዳይዘጋ ወደ ዋናው ሜኑ ይመልሰዋል
+  return ctx.reply('👇 እባክዎ ከታች ካሉት አማራጮች ይምረጡ፦', mainKeyboard);
 });
 
-// ==================== SCREENSHOT / PROOF HANDLER ====================
-async function processProof(ctx, fileId) {
+// ==================== UNIVERSAL PHOTO HANDLER (ማንኛውም ፎቶ ቢላክ) ====================
+async function handleProofPhoto(ctx, fileId) {
+  // 1. Admin ደረሰኝ ሲልክ
   if (ctx.from.id === ADMIN_ID) {
-    return handleAdminPhoto(ctx, fileId);
+    const adminState = getState(ADMIN_ID);
+    let orderId = '';
+    if (adminState.step?.startsWith('admin_waiting_proof_')) {
+      orderId = adminState.step.replace('admin_waiting_proof_', '');
+    } else {
+      const list = Array.from(allOrders.keys());
+      orderId = list[list.length - 1];
+    }
+
+    const order = allOrders.get(orderId);
+    if (!order) return ctx.reply('⚠️ ይህ ትዕዛዝ አልተገኘም!');
+
+    order.status = '✅ ተጠናቋል (Completed)';
+    adminState.step = 'none';
+
+    let userDoneMsg = '';
+    if (order.orderType === 'sell') {
+      userDoneMsg = 
+        `🏆 <b>ትዕዛዝዎ በተሳካ ሁኔታ ተጠናቋል!</b> ✅\n\n` +
+        `💸 <b>ያዘዙት የ ${order.totalEtb} ETB ክፍያ ወደ ሂሳብዎ ገቢ ተደርጓል።</b>\n` +
+        `📄 የክፍያ ደረሰኙ ከላይ ተያይዟል፤ እባክዎ ሂሳብዎን ያረጋግጡ!\n\n` +
+        `🌟 <b>𝗩𝗶𝘃𝗮 𝗣𝟮𝗣 𝗘𝘅𝗰𝗵𝗮𝗻𝗴𝗲 ን ስለመረጡ እናመሰግናለን!</b> 🙏`;
+    } else {
+      userDoneMsg = 
+        `🏆 <b>ትዕዛዝዎ በተሳካ ሁኔታ ተጠናቋል!</b> ✅\n\n` +
+        `💎 <b>የገዙት ${order.amount} USDT ወደ አድራሻዎ በተሳካ ሁኔታ ተልኳል!</b>\n` +
+        `📄 የክፍያ ደረሰኙ ከላይ ተያይዟል፤ እባክዎ Walletዎን ያረጋግጡ!\n\n` +
+        `🌟 <b>𝗩𝗶𝘃𝗮 𝗣𝟮𝗣 𝗘𝘅𝗰𝗵𝗮𝗻𝗴𝗲 ን ስለመረጡ እናመሰግናለን!</b> 🙏`;
+    }
+
+    try {
+      await ctx.telegram.sendPhoto(order.telegramId, fileId, { caption: userDoneMsg, parse_mode: 'HTML' });
+      return ctx.reply(`🎉 <b>ትዕዛዝ #${orderId} ጸድቋል!</b> ደረሰኙ ለደንበኛው ደርሷል።`, { parse_mode: 'HTML' });
+    } catch (err) {
+      return ctx.reply(`⚠️ ደረሰኙን ለደንበኛው በመላክ ላይ ችግር ገጥሟል።`);
+    }
   }
 
+  // 2. ተጠቃሚ/ደንበኛ ስክሪንሾት ሲልክ (ስቴፑ ቢያመልጥ እንኳ ያለምንም ስህተት ይቀበለዋል)
   const state = getState(ctx.from.id);
   const temp = state.data || {};
   const orderId = 'ORD-' + Date.now();
@@ -432,7 +458,7 @@ async function processProof(ctx, fileId) {
   state.data = {};
 
   const successMsg = 
-    `✅ <b>ትዕዛዝዎ እና የክፍያ ደረሰኝዎ በተሳካ ሁኔታ ደርሶናል!</b>\n\n` +
+    `✅ <b>የክፍያ ደረሰኝዎ በተሳካ ሁኔታ ደርሶናል!</b>\n\n` +
     `⏳ <b>ክፍያው በ Admin ተረጋግጦ በጥቂት ደቂቃዎች ውስጥ ይፈጸማል።</b>\n\n` +
     `💎 <b>𝗩𝗶𝘃𝗮 𝗣𝟮𝗣 𝗘𝘅𝗰𝗵𝗮𝗻𝗴𝗲 ን ስለመረጡ እናመሰግናለን!</b>`;
   await ctx.reply(successMsg, { parse_mode: 'HTML', ...mainKeyboard });
@@ -440,7 +466,7 @@ async function processProof(ctx, fileId) {
   let adminReport = '';
   if (newOrder.orderType === 'buy') {
     adminReport = 
-      `🟢 <b>አዲስ የUSDT ግዢ (Buy) ትዕዛዝ ደርሷል!</b>\n` +
+      `🟢 <b>አዲስ የUSDT ግዢ (Buy) ደረሰኝ ደርሷል!</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🆔 <b>የትዕዛዝ ቁጥር፦</b> <code>${orderId}</code>\n` +
       `👤 <b>ደንበኛ፦</b> @${ctx.from.username || 'የለውም'} (${ctx.from.first_name})\n` +
@@ -451,7 +477,7 @@ async function processProof(ctx, fileId) {
       `🎯 <b>መላኪያ Wallet/ID፦</b> <code>${newOrder.accountOrWallet}</code>`;
   } else {
     adminReport = 
-      `🚨 <b>አዲስ የUSDT ሽያጭ (Sell) ትዕዛዝ ደርሷል!</b>\n` +
+      `🚨 <b>አዲስ የUSDT ሽያጭ (Sell) ደረሰኝ ደርሷል!</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🆔 <b>የትዕዛዝ ቁጥር፦</b> <code>${orderId}</code>\n` +
       `👤 <b>ደንበኛ፦</b> @${ctx.from.username || 'የለውም'} (${ctx.from.first_name})\n` +
@@ -477,12 +503,12 @@ async function processProof(ctx, fileId) {
 
 bot.on('photo', async (ctx) => {
   const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-  return processProof(ctx, fileId);
+  return handleProofPhoto(ctx, fileId);
 });
 
 bot.on('document', async (ctx) => {
   const fileId = ctx.message.document.file_id;
-  return processProof(ctx, fileId);
+  return handleProofPhoto(ctx, fileId);
 });
 
 // ==================== ADMIN ACTIONS ====================
@@ -550,91 +576,6 @@ bot.action(/reject_order_(.+)/, async (ctx) => {
   await ctx.editMessageReplyMarkup(null);
   return ctx.reply('❌ ትዕዛዙ ውድቅ ተደርጓል።');
 });
-
-// ==================== AUTO POST TO PROOF CHANNEL ====================
-async function handleAdminPhoto(ctx, fileId) {
-  const adminState = getState(ADMIN_ID);
-  let orderId = '';
-  if (adminState.step?.startsWith('admin_waiting_proof_')) {
-    orderId = adminState.step.replace('admin_waiting_proof_', '');
-  } else {
-    const list = Array.from(allOrders.keys());
-    orderId = list[list.length - 1];
-  }
-
-  const order = allOrders.get(orderId);
-  if (!order) return ctx.reply('⚠️ ይህ ትዕዛዝ አልተገኘም!');
-
-  order.status = '✅ ተጠናቋል (Completed)';
-  adminState.step = 'none';
-
-  let userDoneMsg = '';
-  if (order.orderType === 'sell') {
-    userDoneMsg = 
-      `🏆 <b>ትዕዛዝዎ በተሳካ ሁኔታ ተጠናቋል!</b> ✅\n\n` +
-      `💸 <b>ያዘዙት የ ${order.totalEtb} ETB ክፍያ ወደ ሂሳብዎ ገቢ ተደርጓል።</b>\n` +
-      `📄 የክፍያ ደረሰኙ ከላይ ተያይዟል፤ እባክዎ ሂሳብዎን ያረጋግጡ!\n\n` +
-      `🌟 <b>𝗩𝗶𝘃𝗮 𝗣𝟮𝗣 𝗘𝘅𝗰𝗵𝗮𝗻𝗴𝗲 ን ስለመረጡ እናመሰግናለን!</b> 🙏`;
-  } else {
-    userDoneMsg = 
-      `🏆 <b>ትዕዛዝዎ በተሳካ ሁኔታ ተጠናቋል!</b> ✅\n\n` +
-      `💎 <b>የገዙት ${order.amount} USDT ወደ አድራሻዎ በተሳካ ሁኔታ ተልኳል!</b>\n` +
-      `📄 የክፍያ ደረሰኙ ከላይ ተያይዟል፤ እባክዎ Walletዎን ያረጋግጡ!\n\n` +
-      `🌟 <b>𝗩𝗶𝘃𝗮 𝗣𝟮𝗣 𝗘𝘅𝗰𝗵𝗮𝗻𝗴𝗲 ን ስለመረጡ እናመሰግናለን!</b> 🙏`;
-  }
-
-  try {
-    await ctx.telegram.sendPhoto(order.telegramId, fileId, { caption: userDoneMsg, parse_mode: 'HTML' });
-  } catch (err) {
-    try {
-      await ctx.telegram.sendDocument(order.telegramId, fileId, { caption: userDoneMsg, parse_mode: 'HTML' });
-    } catch (e) {}
-  }
-
-  const maskedPhone = maskAccount(order.accountOrWallet);
-  const clientUsername = order.username ? `@${order.username}` : (order.firstName || 'Anonymous');
-
-  let channelCaption = '';
-  if (order.orderType === 'sell') {
-    channelCaption = 
-      `✅ <b>አዲስ የተጠናቀቀ የሽያጭ ትዕዛዝ (SELL COMPLETED)</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `👤 <b>ደንበኛ (Seller)፦</b> ${clientUsername}\n` +
-      `💵 <b>የተሸጠው መጠን፦</b> <b>${order.amount} USDT</b>\n` +
-      `💰 <b>የተከፈለው ብር፦</b> <b>${order.totalEtb} ETB</b>\n` +
-      `🏦 <b>የክፍያ ዘዴ፦</b> ${order.bankOrNetwork}\n` +
-      `📱 <b>የተላከበት ሂሳብ፦</b> <code>${maskedPhone}</code>\n` +
-      `⚡️ <b>ሁኔታ፦</b> <b>በተሳካ ሁኔታ ተከፍሏል (PAID) ✅</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📢 <b>የክፍያ ማረጋገጫ፦</b> ${PROOF_CHANNEL}\n` +
-      `🌐 <b>ዋና ቻናል፦</b> ${MAIN_CHANNEL}`;
-  } else {
-    channelCaption = 
-      `✅ <b>አዲስ የተጠናቀቀ የግዢ ትዕዛዝ (BUY COMPLETED)</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `👤 <b>ደንበኛ (Buyer)፦</b> ${clientUsername}\n` +
-      `💵 <b>የተገዛው መጠን፦</b> <b>${order.amount} USDT</b>\n` +
-      `💰 <b>የተከፈለው ብር፦</b> <b>${order.totalEtb} ETB</b>\n` +
-      `🔗 <b>ኔትወርክ፦</b> ${order.bankOrNetwork}\n` +
-      `🎯 <b>መቀበያ አድራሻ፦</b> <code>${maskedPhone}</code>\n` +
-      `⚡️ <b>ሁኔታ፦</b> <b>ክሪፕቶው ተላልፏል (SENT) ✅</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📢 <b>የክፍያ ማረጋገጫ፦</b> ${PROOF_CHANNEL}\n` +
-      `🌐 <b>ዋና ቻናል፦</b> ${MAIN_CHANNEL}`;
-  }
-
-  try {
-    await ctx.telegram.sendPhoto(PROOF_CHANNEL, fileId, { caption: channelCaption, parse_mode: 'HTML' });
-    await ctx.reply(`🎉 <b>ትዕዛዝ #${orderId} ጸድቋል!</b>\n\n1. ደረሰኙ ለደንበኛው ደርሷል።\n2. ወደ ${PROOF_CHANNEL} ፖስት ተደርጓል።`, { parse_mode: 'HTML' });
-  } catch (err) {
-    try {
-      await ctx.telegram.sendDocument(PROOF_CHANNEL, fileId, { caption: channelCaption, parse_mode: 'HTML' });
-      await ctx.reply(`🎉 <b>ትዕዛዝ #${orderId} ጸድቋል!</b>\n\n1. ደረሰኙ ለደንበኛው ደርሷል።\n2. ወደ ${PROOF_CHANNEL} ፖስት ተደርጓል።`, { parse_mode: 'HTML' });
-    } catch (e) {
-      await ctx.reply(`⚠️ ትዕዛዙ ጸድቋል፤ ነገር ግን ወደ ${PROOF_CHANNEL} ፖስት አልተደረገም (ቦቱ ቻናሉ ላይ Admin መሆኑን ያረጋግጡ)።`);
-    }
-  }
-}
 
 bot.launch().then(() => {
   console.log('Viva P2P Exchange Bot Cleanly Started!');
