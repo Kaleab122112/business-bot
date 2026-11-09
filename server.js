@@ -20,7 +20,6 @@ const MONGO_URI = process.env.MONGO_URI;
 
 // በዋናው ሜኑ ላይ የሚወጣው ባነር ፎቶ ሊንክ (የራስህን ፎቶ መቀየር ትችላለህ)
 const MENU_PHOTO_URL = 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?auto=format&fit=crop&w=800&q=80';
-
 // 3. Database Connection
 if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
