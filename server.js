@@ -18,6 +18,9 @@ const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
 const MONGO_URI = process.env.MONGO_URI;
 
+// በዋናው ሜኑ ላይ የሚወጣው ባነር ፎቶ ሊንክ (የራስህን ፎቶ መቀየር ትችላለህ)
+const MENU_PHOTO_URL = 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?auto=format&fit=crop&w=800&q=80';
+
 // 3. Database Connection
 if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
@@ -73,7 +76,7 @@ async function getUser(id, ctx) {
   }
 }
 
-// Keyboards
+// ኪቦርዶች
 const mainKeyboard = Markup.keyboard([
   ['🔴 USDT ለመሸጥ', '🟢 USDT ለመግዛት'],
   ['📊 የዛሬ ዋጋ', '📋 ትዕዛዞቼ'],
@@ -83,28 +86,104 @@ const mainKeyboard = Markup.keyboard([
 const cancelKeyboard = Markup.keyboard([['🔻 ሰርዝ']]).resize();
 const backKeyboard = Markup.keyboard([['🔙 ወደ ዋናው ሜኑ ተመለስ']]).resize();
 
-// ==================== START & MENU ====================
+// ==================== 🔐 CHANNEL JOIN CHECKER ====================
+async function checkChannelJoined(ctx, userId) {
+  if (userId === ADMIN_ID) return true; // አድሚን ሁልጊዜ ያልፋል
+  try {
+    const member = await ctx.telegram.getChatMember(MAIN_CHANNEL, userId);
+    return ['creator', 'administrator', 'member', 'restricted'].includes(member.status);
+  } catch (err) {
+    console.error('Channel check error (Ensure bot is admin in channel):', err.message);
+    return true; // ቻናሉ ላይ ችግር ቢያጋጥም እንዳይዘጋ
+  }
+}
+
+async function sendJoinPrompt(ctx) {
+  const channelLink = MAIN_CHANNEL.startsWith('@') 
+    ? `https://t.me/${MAIN_CHANNEL.replace('@', '')}` 
+    : MAIN_CHANNEL;
+
+  const joinMsg = 
+    `⚠️ <b>ይቅርታ፣ ቦቱን ለመጠቀም መጀመሪያ ቻናላችንን መቀላቀል አለብዎት!</b>\n\n` +
+    `👉 <b>እባክዎ ከታች ያለውን ሊንክ ተጭነው ቻናሉን ከተቀላቀሉ በኋላ «✅ ተቀላቅያለሁ (Check)» የሚለውን ይጫኑ፡-</b>`;
+
+  const joinKb = Markup.inlineKeyboard([
+    [Markup.button.url('📢 ቻናሉን ተቀላቀል (Join Channel)', channelLink)],
+    [Markup.button.callback('✅ ተቀላቅያለሁ (Check)', 'check_joined')]
+  ]);
+
+  return ctx.reply(joinMsg, { parse_mode: 'HTML', ...joinKb });
+}
+
+// ዋናውን ሜኑ ከፎቶ ጋር የሚያሳይ ተግባር
+async function sendMainMenu(ctx) {
+  const welcomeCaption = 
+    `👋 <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> 💕\n\n` +
+    `🔐 <b>ደህንነቱ የተጠበቀ እና ⚡️ እጅግ ፈጣን የ USDT 💲 መገበያያ ቤት!</b>\n\n` +
+    `👇 <b>የሚፈልጉትን አገልግሎት ከታች ካሉት አማራጮች ይምረጡ፡-</b>`;
+
+  try {
+    await ctx.replyWithPhoto(MENU_PHOTO_URL, {
+      caption: welcomeCaption,
+      parse_mode: 'HTML',
+      ...mainKeyboard
+    });
+  } catch (err) {
+    // ፎቶው ካልጫነ በጽሑፍ ያሳያል
+    await ctx.reply(welcomeCaption, {
+      parse_mode: 'HTML',
+      ...mainKeyboard
+    });
+  }
+}
+
+// ==================== START ====================
 bot.start(async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) {
+    return sendJoinPrompt(ctx);
+  }
+
   await User.findOneAndUpdate(
     { telegramId: ctx.from.id },
     { step: 'none', tempOrder: {}, firstName: ctx.from.first_name, username: ctx.from.username },
     { upsert: true }
   );
 
-  const welcomeMsg = 
-    `👋 <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> 💕\n\n` +
-    `🔐 <b>ደህንነቱ የተጠበቀ እና ⚡️ እጅግ ፈጣን የ USDT 💲 መገበያያ ቤት!</b>\n\n` +
-    `👇 <b>የሚፈልጉትን አገልግሎት ከታች ካሉት አማራጮች ይምረጡ፡-</b>`;
-
-  return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...mainKeyboard });
+  return sendMainMenu(ctx);
 });
 
+// ተቀላቅያለሁ የሚለውን Callback ሲነካ ማጣራት
+bot.action('check_joined', async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (isJoined) {
+    await ctx.deleteMessage().catch(() => {});
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { step: 'none', tempOrder: {} },
+      { upsert: true }
+    );
+    await ctx.reply('🎉 <b>እንኳን ደህና መጡ! ቻናሉን በተሳካ ሁኔታ ተቀላቅለዋል።</b>', { parse_mode: 'HTML' });
+    return sendMainMenu(ctx);
+  } else {
+    return ctx.answerCbQuery('❌ እስካሁን ቻናሉን አልተቀላቀሉም! እባክዎ መጀመሪያ Join ይበሉ።', { show_alert: true });
+  }
+});
+
+// ==================== BACK & CANCEL ====================
 bot.hears(['🔻 ሰርዝ', 'ሰርዝ', '🔙 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
-  return ctx.reply('🏠 ወደ ዋናው ሜኑ ተመልሰዋል፡', mainKeyboard);
+  return sendMainMenu(ctx);
 });
 
+// ==================== RATES ====================
 bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   const rateMsg = 
     `📊 <b>የዛሬ የምንዛሬ ተመን (TODAY'S RATES)</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -119,7 +198,11 @@ bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ'], async (ctx) => {
   return ctx.reply(rateMsg, { parse_mode: 'HTML', ...backKeyboard });
 });
 
+// ==================== SUPPORT ====================
 bot.hears(['❓ ድጋፍ', 'ድጋፍ'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   const supportMsg = 
     `📞 <b>የደንበኞች ድጋፍ እና ማህበረሰብ</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -130,7 +213,11 @@ bot.hears(['❓ ድጋፍ', 'ድጋፍ'], async (ctx) => {
   return ctx.reply(supportMsg, { parse_mode: 'HTML', disable_web_page_preview: true, ...backKeyboard });
 });
 
+// ==================== ORDERS ====================
 bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   const lastOrder = await Order.findOne({ telegramId: ctx.from.id }).sort({ createdAt: -1 });
   if (!lastOrder) {
     return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>', { parse_mode: 'HTML' });
@@ -163,6 +250,9 @@ bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ'], async (ctx) => {
 
 // ==================== 🔴 SELL USDT ====================
 bot.hears(['🔴 USDT ለመሸጥ', 'USDT ለመሸጥ'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   const msg = 
     `💵 <b>የ USDT መሸጫ ገጽ (SELL USDT)</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -178,6 +268,9 @@ bot.hears(['🔴 USDT ለመሸጥ', 'USDT ለመሸጥ'], async (ctx) => {
 });
 
 bot.hears(['✅ ተስማምቻለሁ', 'ተስማምቻለሁ'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   await User.findOneAndUpdate(
     { telegramId: ctx.from.id },
     { step: 'waiting_sell_amount', 'tempOrder.orderType': 'sell' },
@@ -191,6 +284,9 @@ bot.hears(['✅ ተስማምቻለሁ', 'ተስማምቻለሁ'], async (ctx) =>
 });
 
 bot.hears(['🏦 Telebirr', 'Telebirr', 'ቴሌብር'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   await User.findOneAndUpdate(
     { telegramId: ctx.from.id },
     { step: 'waiting_telebirr', 'tempOrder.bank': 'Telebirr' }
@@ -203,6 +299,9 @@ bot.hears(['🏦 Telebirr', 'Telebirr', 'ቴሌብር'], async (ctx) => {
 });
 
 bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE', 'ንግድ ባንክ'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   await User.findOneAndUpdate(
     { telegramId: ctx.from.id },
     { step: 'waiting_cbe', 'tempOrder.bank': 'CBE' }
@@ -216,6 +315,9 @@ bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE', '�
 
 // ==================== 🟢 BUY USDT ====================
 bot.hears(['🟢 USDT ለመግዛት', 'USDT ለመግዛት'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   const msg = 
     `📈 <b>የዛሬ የ USDT መግዣ ተመን (Rate)</b>\n\n` +
     `💵 <b>1 USDT = 193 ETB</b>\n\n` +
@@ -226,6 +328,9 @@ bot.hears(['🟢 USDT ለመግዛት', 'USDT ለመግዛት'], async (ctx) => 
 });
 
 bot.hears(['✅ ተስማምቻለሁ (መግዛት)', 'ተስማምቻለሁ (መግዛት)'], async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   await User.findOneAndUpdate(
     { telegramId: ctx.from.id },
     { step: 'waiting_buy_amount', 'tempOrder.orderType': 'buy' },
@@ -240,6 +345,9 @@ bot.hears(['✅ ተስማምቻለሁ (መግዛት)', 'ተስማምቻለሁ (�
 
 // ==================== TEXT INPUTS ====================
 bot.on('text', async (ctx) => {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   const text = ctx.message.text.trim();
   const user = await getUser(ctx.from.id, ctx);
   const step = user.step || 'none';
@@ -445,16 +553,18 @@ bot.on('text', async (ctx) => {
     return ctx.reply(payAccounts, { parse_mode: 'HTML', ...cancelKeyboard });
   }
 
-  return ctx.reply('🏠 ወደ ዋናው ሜኑ ተመልሰዋል፡', mainKeyboard);
+  return sendMainMenu(ctx);
 });
 
 // ==================== 📸 SCREENSHOT መላኪያ ክፍል ====================
 async function handleUserScreenshot(ctx, fileId) {
+  const isJoined = await checkChannelJoined(ctx, ctx.from.id);
+  if (!isJoined) return sendJoinPrompt(ctx);
+
   const user = await getUser(ctx.from.id, ctx);
   const temp = user.tempOrder || {};
   const orderId = 'ORD-' + Date.now();
 
-  // 1. ትዕዛዙን በዳታቤዝ መመዝገብ
   await Order.create({
     orderId,
     telegramId: ctx.from.id,
@@ -471,10 +581,8 @@ async function handleUserScreenshot(ctx, fileId) {
     status: '⏳ በመጠባበቅ ላይ (Pending)'
   });
 
-  // የተጠቃሚውን ስቴፕ ማጽዳት
   await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
 
-  // 2. ለተጠቃሚው የሚደርስ ፈጣን ማረጋገጫ
   const userReplyMsg = 
     `✅ <b>ትዕዛዝዎ እና የከፈሉበት ደረሰኝ በተሳካ ሁኔታ ደርሶናል!</b>\n\n` +
     `👨‍💻 <b>መረጃዎ ወደ Admin ተልኳል፤ በጥቂት ደቂቃዎች ውስጥ ተጣርቶ ምላሽ ይሰጥዎታል።</b>\n\n` +
@@ -482,7 +590,6 @@ async function handleUserScreenshot(ctx, fileId) {
 
   await ctx.reply(userReplyMsg, { parse_mode: 'HTML', ...mainKeyboard });
 
-  // 3. ወደ Admin የሚላከው ደረሰኝ እና የፍቃድ አዝራሮች
   let adminCaption = '';
   if (temp.orderType === 'buy') {
     adminCaption = 
@@ -544,7 +651,6 @@ bot.on('document', async (ctx) => {
 });
 
 // ==================== 👨‍💻 ADMIN APPROVAL ACTIONS ====================
-// 1. Admin አጽድቅ ሲነካ
 bot.action(/approve_order_(.+)/, async (ctx) => {
   const orderId = ctx.match[1];
   const order = await Order.findOne({ orderId });
@@ -556,7 +662,6 @@ bot.action(/approve_order_(.+)/, async (ctx) => {
   order.status = '✅ ተጠናቋል (Completed)';
   await order.save();
 
-  // ለደንበኛው የሚደርሰው መልእክት
   let clientSuccessMsg = '';
   if (order.orderType === 'sell') {
     clientSuccessMsg = 
@@ -588,7 +693,6 @@ bot.action(/approve_order_(.+)/, async (ctx) => {
   return ctx.reply(`🎉 ትዕዛዝ #${orderId} ጸድቋል፤ ለደንበኛው የማረጋገጫ መልእክት ደርሶታል!`);
 });
 
-// 2. Admin ውድቅ አድርግ ሲነካ
 bot.action(/reject_order_(.+)/, async (ctx) => {
   const orderId = ctx.match[1];
   const order = await Order.findOne({ orderId });
@@ -621,7 +725,7 @@ bot.action(/reject_order_(.+)/, async (ctx) => {
 });
 
 bot.launch().then(() => {
-  console.log('Viva P2P Exchange Bot Active!');
+  console.log('Viva P2P Exchange Bot Active with Channel Join Guard & Photo Menu!');
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
