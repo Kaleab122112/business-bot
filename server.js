@@ -117,9 +117,9 @@ async function sendJoinPrompt(ctx) {
 // ዋናውን ሜኑ ከፎቶ ጋር የሚያሳይ ተግባር
 async function sendMainMenu(ctx) {
   const welcomeCaption = 
-    `👋 <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> 💕\n\n` +
-    `🔐 <b>ደህንነቱ የተጠበቀ እና ⚡️ እጅግ ፈጣን የ USDT 💲 መገበያያ ቤት!</b>\n\n` +
-    `👇 <b>የሚፈልጉትን አገልግሎት ከታች ካሉት አማራጮች ይምረጡ፡-</b>`;
+    `<tg-emoji emoji-id="5413366476251866707">👋</tg-emoji> <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> <tg-emoji emoji-id="6266794310671275367">💕</tg-emoji>\n\n` +
+    `<tg-emoji emoji-id="5965043124068687455">🔐</tg-emoji> <b>ደህንነቱ የተጠበቀ እና ⚡️ እጅግ ፈጣን የ USDT 💲 መገበያያ ቤት!</b>\n\n` +
+    `<tg-emoji emoji-id="5406745015365943482">👇</tg-emoji> <b>የሚፈልጉትን አገልግሎት ከታች ካሉት አማራጮች ይምረጡ፡-</b>`;
 
   try {
     await ctx.replyWithPhoto(MENU_PHOTO_URL, {
@@ -128,7 +128,7 @@ async function sendMainMenu(ctx) {
       ...mainKeyboard
     });
   } catch (err) {
-    // ፎቶው ካልጫነ በጽሑፍ ያሳያል
+    console.error('Photo send error:', err.message);
     await ctx.reply(welcomeCaption, {
       parse_mode: 'HTML',
       ...mainKeyboard
