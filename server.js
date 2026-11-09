@@ -19,7 +19,7 @@ const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
 const MONGO_URI = process.env.MONGO_URI;
 
 // በዋናው ሜኑ ላይ የሚወጣው ባነር ፎቶ ሊንክ (የራስህን ፎቶ መቀየር ትችላለህ)
-const MENU_PHOTO_URL = 'https://i.ibb.co/6PZqZ9k/viva-banner.jpg';
+const MENU_PHOTO_URL = 'እዚህ_ጋር_ቦቱ_የሰጠህን_ID_ለጥፈው';
 // 3. Database Connection
 if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
@@ -640,8 +640,8 @@ async function handleUserScreenshot(ctx, fileId) {
 }
 
 bot.on('photo', async (ctx) => {
-  const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-  return handleUserScreenshot(ctx, fileId);
+  const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+  return ctx.reply(`የፎቶው ID ይኸውልህ፦\n\n<code>${photoId}</code>`, { parse_mode: 'HTML' });
 });
 
 bot.on('document', async (ctx) => {
