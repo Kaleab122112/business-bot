@@ -10,7 +10,7 @@ http.createServer((req, res) => {
   console.log(`Web Server listening on port ${PORT}`);
 });
 
-// 2. Settings (አዲሱን ቶከን እዚህ ጋር ይተኩ)
+// 2. Settings
 const BOT_TOKEN = process.env.BOT_TOKEN || '9237982046:AAHDkJ8ooslZJVpoAm2FvSj0IMeLKBAco9Y';
 const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
@@ -35,6 +35,7 @@ function maskAccount(str) {
   return `${clean.slice(0, 4)}*****${clean.slice(-2)}`;
 }
 
+// ኪቦርድ በትክክል በስክሪኑ ላይ ከሚታዩት ስሞችና ኢሞጂዎች ጋር የተጣጣመ
 const mainKeyboard = Markup.keyboard([
   ['🔴 USDT ለመሸጥ', '🟢 USDT ለመግዛት'],
   ['📊 የዛሬ ዋጋ', '📋 ትዕዛዞቼ'],
@@ -44,7 +45,7 @@ const mainKeyboard = Markup.keyboard([
 const cancelKeyboard = Markup.keyboard([['🔻 ሰርዝ']]).resize();
 const backKeyboard = Markup.keyboard([['🔙 ወደ ዋናው ሜኑ ተመለስ']]).resize();
 
-// ==================== START & MENU ====================
+// ==================== START ====================
 bot.start(async (ctx) => {
   const state = getState(ctx.from.id);
   state.step = 'none';
@@ -58,14 +59,20 @@ bot.start(async (ctx) => {
   return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...mainKeyboard });
 });
 
-bot.hears(['🔻 ሰርዝ', '🔙 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ', 'ሰርዝ'], async (ctx) => {
+// ==================== CANCEL & BACK ====================
+bot.hears([
+  '🔻 ሰርዝ', 'ሰርዝ',
+  '🔙 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ',
+  '🏠 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ'
+], async (ctx) => {
   const state = getState(ctx.from.id);
   state.step = 'none';
   state.data = {};
   return ctx.reply('🏠 ወደ ዋናው ሜኑ ተመልሰዋል፡', mainKeyboard);
 });
 
-bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ'], async (ctx) => {
+// ==================== RATES (የዛሬ ዋጋ) ====================
+bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ', 'ዋጋ', 'Rate'], async (ctx) => {
   const rateMsg = 
     `📊 <b>የዛሬ የምንዛሬ ተመን (TODAY'S RATES)</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -80,7 +87,8 @@ bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ'], async (ctx) => {
   return ctx.reply(rateMsg, { parse_mode: 'HTML', ...backKeyboard });
 });
 
-bot.hears(['❓ ድጋፍ', 'ድጋፍ'], async (ctx) => {
+// ==================== SUPPORT (ድጋፍ) ====================
+bot.hears(['❓ ድጋፍ', '❓ ድጋፍ', 'ድጋፍ', 'Support', 'እርዳታ'], async (ctx) => {
   const supportMsg = 
     `📞 <b>የደንበኞች ድጋፍ እና ማህበረሰብ</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -92,10 +100,11 @@ bot.hears(['❓ ድጋፍ', 'ድጋፍ'], async (ctx) => {
   return ctx.reply(supportMsg, { parse_mode: 'HTML', disable_web_page_preview: true, ...backKeyboard });
 });
 
-bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ'], async (ctx) => {
+// ==================== ORDERS (ትዕዛዞቼ) ====================
+bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ', 'Orders'], async (ctx) => {
   const userOrders = Array.from(allOrders.values()).filter(o => o.telegramId === ctx.from.id);
   if (userOrders.length === 0) {
-    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>', { parse_mode: 'HTML' });
+    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>\n\nአዲስ ትዕዛዝ ለመስጠት ከዋናው ሜኑ ይምረጡ።', { parse_mode: 'HTML' });
   }
 
   const lastOrder = userOrders[userOrders.length - 1];
@@ -125,7 +134,7 @@ bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ'], async (ctx) => {
   return ctx.reply(msg, { parse_mode: 'HTML' });
 });
 
-// ==================== 🔴 SELL FLOW ====================
+// ==================== 🔴 SELL USDT ====================
 bot.hears(['🔴 USDT ለመሸጥ', 'USDT ለመሸጥ'], async (ctx) => {
   const msg = 
     `💵 <b>የ USDT መሸጫ ገጽ (SELL USDT)</b>\n` +
@@ -152,7 +161,7 @@ bot.hears(['✅ ተስማምቻለሁ', 'ተስማምቻለሁ'], async (ctx) =>
   );
 });
 
-bot.hears(['🏦 Telebirr', 'Telebirr'], async (ctx) => {
+bot.hears(['🏦 Telebirr', 'Telebirr', 'ቴሌብር'], async (ctx) => {
   const state = getState(ctx.from.id);
   state.step = 'waiting_telebirr';
   state.data.bank = 'Telebirr';
@@ -163,7 +172,7 @@ bot.hears(['🏦 Telebirr', 'Telebirr'], async (ctx) => {
   );
 });
 
-bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE'], async (ctx) => {
+bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE', 'ንግድ ባንክ'], async (ctx) => {
   const state = getState(ctx.from.id);
   state.step = 'waiting_cbe';
   state.data.bank = 'CBE';
@@ -174,7 +183,7 @@ bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE'], as
   );
 });
 
-// ==================== 🟢 BUY FLOW ====================
+// ==================== 🟢 BUY USDT ====================
 bot.hears(['🟢 USDT ለመግዛት', 'USDT ለመግዛት'], async (ctx) => {
   const msg = 
     `📈 <b>የዛሬ የ USDT መግዣ ተመን (Rate)</b>\n\n` +
@@ -235,7 +244,7 @@ bot.on('text', async (ctx) => {
     let clean = text.replace(/[^0-9]/g, '');
     if (clean.length === 9 && clean.startsWith('9')) clean = '0' + clean;
 
-    if (clean.length !== 10 || !clean.startsWith('09') && !clean.startsWith('07')) {
+    if (clean.length !== 10 || (!clean.startsWith('09') && !clean.startsWith('07'))) {
       return ctx.reply('⚠️ <b>ያስገቡት የቴሌብር ስልክ ትክክል አይደለም!</b> (ምሳሌ፦ <code>0912345678</code>)', { parse_mode: 'HTML' });
     }
 
@@ -392,14 +401,12 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// ==================== UNIVERSAL PHOTO & DOCUMENT PROOF HANDLER ====================
-async function processIncomingProof(ctx, fileId) {
-  // 1. Admin ደረሰኝ ሲልክ
+// ==================== SCREENSHOT / PROOF HANDLER ====================
+async function processProof(ctx, fileId) {
   if (ctx.from.id === ADMIN_ID) {
     return handleAdminPhoto(ctx, fileId);
   }
 
-  // 2. ደንበኛ ደረሰኝ ሲልክ
   const state = getState(ctx.from.id);
   const temp = state.data || {};
   const orderId = 'ORD-' + Date.now();
@@ -462,31 +469,20 @@ async function processIncomingProof(ctx, fileId) {
   ]);
 
   try {
-    await ctx.telegram.sendPhoto(ADMIN_ID, fileId, {
-      caption: adminReport,
-      parse_mode: 'HTML',
-      ...adminActions
-    });
+    await ctx.telegram.sendPhoto(ADMIN_ID, fileId, { caption: adminReport, parse_mode: 'HTML', ...adminActions });
   } catch (e) {
-    // ፎቶው እንደ Document ከተላከ
-    await ctx.telegram.sendDocument(ADMIN_ID, fileId, {
-      caption: adminReport,
-      parse_mode: 'HTML',
-      ...adminActions
-    });
+    await ctx.telegram.sendDocument(ADMIN_ID, fileId, { caption: adminReport, parse_mode: 'HTML', ...adminActions });
   }
 }
 
-// ፎቶ ሲላክ
 bot.on('photo', async (ctx) => {
   const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-  return processIncomingProof(ctx, fileId);
+  return processProof(ctx, fileId);
 });
 
-// ፋይል/ዶክመንት ሆኖ ሲላክ
 bot.on('document', async (ctx) => {
   const fileId = ctx.message.document.file_id;
-  return processIncomingProof(ctx, fileId);
+  return processProof(ctx, fileId);
 });
 
 // ==================== ADMIN ACTIONS ====================
