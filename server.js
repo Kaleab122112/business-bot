@@ -1,32 +1,82 @@
+require('dotenv').config();
 const http = require('http');
 const { Telegraf, Markup } = require('telegraf');
+const mongoose = require('mongoose');
 
 // 1. Render Port እንዳይዘጋ Web Server
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Viva P2P Exchange Bot Active 24/7\n');
+  res.end('Viva P2P Exchange Bot Active 24/7 with MongoDB\n');
 }).listen(PORT, () => {
-  console.log(`Port active: ${PORT}`);
+  console.log(`Web Server listening on port ${PORT}`);
 });
 
-// 2. Configurations
+// 2. Settings
 const BOT_TOKEN = process.env.BOT_TOKEN || '9237982046:AAHDkJ8ooslZJVpoAm2FvSj0IMeLKBAco9Y';
 const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
+const MONGO_URI = process.env.MONGO_URI;
 
-const bo
-const userState = new Map();
-const allOrders = new Map();
-
-function getState(id) {
-  if (!userState.has(id)) {
-    userState.set(id, { step: 'none', data: {} });
-  }
-  return userState.get(id);
+// 3. MongoDB Connection
+if (MONGO_URI) {
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('MongoDB Atlas Connected successfully!'))
+    .catch(err => console.error('MongoDB Connection Error:', err.message));
+} else {
+  console.log('MONGO_URI አልተገኘም፤ ጊዜያዊ ሜሞሪ ይጠቀማል።');
 }
 
-// ኪቦርድ በስክሪኑ ላይ ካሉት ጽሑፎች ጋር በትክክል የተጣጣመ
+// 4. Data Models
+const userSchema = new mongoose.Schema({
+  telegramId: { type: Number, required: true, unique: true },
+  firstName: String,
+  username: String,
+  step: { type: String, default: 'none' },
+  tempOrder: { type: Object, default: {} }
+}, { timestamps: true });
+
+const orderSchema = new mongoose.Schema({
+  orderId: { type: String, required: true, unique: true },
+  telegramId: { type: Number, required: true },
+  username: String,
+  firstName: String,
+  orderType: { type: String, default: 'buy' },
+  amount: Number,
+  totalEtb: Number,
+  rate: Number,
+  bankOrNetwork: String,
+  accountOrWallet: String,
+  accountName: String,
+  userProofPhotoId: String,
+  status: { type: String, default: '⏳ በመጠባበቅ ላይ (Pending)' }
+}, { timestamps: true });
+
+const User = mongoose.model('User', userSchema);
+const Order = mongoose.model('Order', orderSchema);
+
+const bot = new Telegraf(BOT_TOKEN);
+
+// User State Helper
+async function getUser(id, ctx) {
+  try {
+    let u = await User.findOne({ telegramId: id });
+    if (!u) {
+      u = await User.create({
+        telegramId: id,
+        firstName: ctx?.from?.first_name || '',
+        username: ctx?.from?.username || '',
+        step: 'none',
+        tempOrder: {}
+      });
+    }
+    return u;
+  } catch (err) {
+    return { step: 'none', tempOrder: {} };
+  }
+}
+
+// ኪቦርዶች
 const mainKeyboard = Markup.keyboard([
   ['🔴 USDT ለመሸጥ', '🟢 USDT ለመግዛት'],
   ['📊 የዛሬ ዋጋ', '📋 ትዕዛዞቼ'],
@@ -38,9 +88,11 @@ const backKeyboard = Markup.keyboard([['🔙 ወደ ዋናው ሜኑ ተመለ�
 
 // ==================== START ====================
 bot.start(async (ctx) => {
-  const state = getState(ctx.from.id);
-  state.step = 'none';
-  state.data = {};
+  await User.findOneAndUpdate(
+    { telegramId: ctx.from.id },
+    { step: 'none', tempOrder: {}, firstName: ctx.from.first_name, username: ctx.from.username },
+    { upsert: true }
+  );
 
   const welcomeMsg = 
     `👋 <b>እንኳን ወደ VIVA TECH EXCHANGE በደህና መጡ!</b> 💕\n\n` +
@@ -50,15 +102,11 @@ bot.start(async (ctx) => {
   return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...mainKeyboard });
 });
 
-// ==================== BACK & CANCEL ====================
 bot.hears(['🔻 ሰርዝ', 'ሰርዝ', '🔙 ወደ ዋናው ሜኑ ተመለስ', 'ወደ ዋናው ሜኑ ተመለስ'], async (ctx) => {
-  const state = getState(ctx.from.id);
-  state.step = 'none';
-  state.data = {};
+  await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
   return ctx.reply('🏠 ወደ ዋናው ሜኑ ተመልሰዋል፡', mainKeyboard);
 });
 
-// ==================== RATES (የዛሬ ዋጋ) ====================
 bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ'], async (ctx) => {
   const rateMsg = 
     `📊 <b>የዛሬ የምንዛሬ ተመን (TODAY'S RATES)</b>\n` +
@@ -74,8 +122,7 @@ bot.hears(['📊 የዛሬ ዋጋ', 'የዛሬ ዋጋ'], async (ctx) => {
   return ctx.reply(rateMsg, { parse_mode: 'HTML', ...backKeyboard });
 });
 
-// ==================== SUPPORT (ድጋፍ) ====================
-bot.hears(['❓ ድጋፍ', '❓ ድጋፍ', 'ድጋፍ', 'Support'], async (ctx) => {
+bot.hears(['❓ ድጋፍ', 'ድጋፍ'], async (ctx) => {
   const supportMsg = 
     `📞 <b>የደንበኞች ድጋፍ እና ማህበረሰብ</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -86,41 +133,43 @@ bot.hears(['❓ ድጋፍ', '❓ ድጋፍ', 'ድጋፍ', 'Support'], async (ctx
   return ctx.reply(supportMsg, { parse_mode: 'HTML', disable_web_page_preview: true, ...backKeyboard });
 });
 
-// ==================== ORDERS (ትዕዛዞቼ) ====================
 bot.hears(['📋 ትዕዛዞቼ', 'ትዕዛዞቼ'], async (ctx) => {
-  const userOrders = Array.from(allOrders.values()).filter(o => o.telegramId === ctx.from.id);
-  if (userOrders.length === 0) {
-    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>', { parse_mode: 'HTML' });
+  try {
+    const lastOrder = await Order.findOne({ telegramId: ctx.from.id }).sort({ createdAt: -1 });
+    if (!lastOrder) {
+      return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>', { parse_mode: 'HTML' });
+    }
+
+    let details = '';
+    if (lastOrder.orderType === 'sell') {
+      details = 
+        `🔄 <b>ዓይነት፦</b> <b>USDT መሸጥ</b>\n` +
+        `💵 <b>የተሸጠው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
+        `💰 <b>የሚከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
+        `🏦 <b>የተላከበት አካውንት፦</b> <code>${lastOrder.accountOrWallet}</code>\n` +
+        `🌐 <b>ኔትወርክ፦</b> ${lastOrder.bankOrNetwork}\n`;
+    } else {
+      details = 
+        `🔄 <b>ዓይነት፦</b> <b>USDT መግዛት</b>\n` +
+        `💵 <b>የተገዛው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
+        `💰 <b>የተከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
+        `🎯 <b>የመቀበያ Wallet/ID፦</b> <code>${lastOrder.accountOrWallet}</code>\n`;
+    }
+
+    const msg = 
+      `📋 <b>የመጨረሻ ትዕዛዝዎ ሁኔታ (Order Status)</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      details +
+      `📊 <b>የትዕዛዙ ሁኔታ፦</b> <b>${lastOrder.status}</b>\n\n` +
+      `<blockquote>⚠️ <b>ትዕዛዝዎ በ10-30 ደቂቃ ውስጥ ተጣርቶ ምላሽ ይሰጠዋል።</b></blockquote>`;
+
+    return ctx.reply(msg, { parse_mode: 'HTML' });
+  } catch (err) {
+    return ctx.reply('📋 <b>እስካሁን ምንም ዓይነት ትዕዛዝ አልፈጸሙም!</b>');
   }
-
-  const lastOrder = userOrders[userOrders.length - 1];
-  let details = '';
-  if (lastOrder.orderType === 'sell') {
-    details = 
-      `🔄 <b>ዓይነት፦</b> <b>USDT መሸጥ</b>\n` +
-      `💵 <b>የተሸጠው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
-      `💰 <b>የሚከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
-      `🏦 <b>የተላከበት አካውንት፦</b> <code>${lastOrder.accountOrWallet}</code>\n` +
-      `🌐 <b>ኔትወርክ፦</b> ${lastOrder.bankOrNetwork}\n`;
-  } else {
-    details = 
-      `🔄 <b>ዓይነት፦</b> <b>USDT መግዛት</b>\n` +
-      `💵 <b>የተገዛው መጠን፦</b> <b>${lastOrder.amount} USDT</b>\n` +
-      `💰 <b>የተከፈለው ብር፦</b> <b>${lastOrder.totalEtb} ETB</b>\n` +
-      `🎯 <b>የመቀበያ Wallet/ID፦</b> <code>${lastOrder.accountOrWallet}</code>\n`;
-  }
-
-  const msg = 
-    `📋 <b>የመጨረሻ ትዕዛዝዎ ሁኔታ (Order Status)</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-    details +
-    `📊 <b>የትዕዛዙ ሁኔታ፦</b> <b>${lastOrder.status}</b>\n\n` +
-    `<blockquote>⚠️ <b>ትዕዛዝዎ በ10-30 ደቂቃ ውስጥ ተጣርቶ ምላሽ ይሰጠዋል።</b></blockquote>`;
-
-  return ctx.reply(msg, { parse_mode: 'HTML' });
 });
 
-// ==================== 🔴 SELL USDT FLOW ====================
+// ==================== SELL USDT FLOW ====================
 bot.hears(['🔴 USDT ለመሸጥ', 'USDT ለመሸጥ'], async (ctx) => {
   const msg = 
     `💵 <b>የ USDT መሸጫ ገጽ (SELL USDT)</b>\n` +
@@ -137,9 +186,11 @@ bot.hears(['🔴 USDT ለመሸጥ', 'USDT ለመሸጥ'], async (ctx) => {
 });
 
 bot.hears(['✅ ተስማምቻለሁ', 'ተስማምቻለሁ'], async (ctx) => {
-  const state = getState(ctx.from.id);
-  state.step = 'waiting_sell_amount';
-  state.data = { orderType: 'sell' };
+  await User.findOneAndUpdate(
+    { telegramId: ctx.from.id },
+    { step: 'waiting_sell_amount', 'tempOrder.orderType': 'sell' },
+    { upsert: true }
+  );
 
   return ctx.reply(
     `<b>መሸጥ የሚፈልጉትን የ USDT መጠን በቁጥር ብቻ ያስገቡ፡-</b>\n\n🔻 <b>ዝቅተኛው መጠን 0.5 USDT ነው</b>`,
@@ -148,9 +199,10 @@ bot.hears(['✅ ተስማምቻለሁ', 'ተስማምቻለሁ'], async (ctx) =>
 });
 
 bot.hears(['🏦 Telebirr', 'Telebirr', 'ቴሌብር'], async (ctx) => {
-  const state = getState(ctx.from.id);
-  state.step = 'waiting_telebirr';
-  state.data.bank = 'Telebirr';
+  await User.findOneAndUpdate(
+    { telegramId: ctx.from.id },
+    { step: 'waiting_telebirr', 'tempOrder.bank': 'Telebirr' }
+  );
 
   return ctx.reply(
     `📱 <b>እባክዎ የ Telebirr ስልክ ቁጥርዎን ያስገቡ፡-</b>\n\n💡 <b>ምሳሌ፦</b> <code>0912345678</code>`,
@@ -159,9 +211,10 @@ bot.hears(['🏦 Telebirr', 'Telebirr', 'ቴሌብር'], async (ctx) => {
 });
 
 bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE', 'ንግድ ባንክ'], async (ctx) => {
-  const state = getState(ctx.from.id);
-  state.step = 'waiting_cbe';
-  state.data.bank = 'CBE';
+  await User.findOneAndUpdate(
+    { telegramId: ctx.from.id },
+    { step: 'waiting_cbe', 'tempOrder.bank': 'CBE' }
+  );
 
   return ctx.reply(
     `🏦 <b>እባክዎ የ CBE Account ቁጥርዎን ያስገቡ፡-</b>\n\n💡 <b>ምሳሌ፦</b> <code>1000764146453</code>`,
@@ -169,7 +222,7 @@ bot.hears(['🏦 CBE ንግድ ባንክ', 'CBE ንግድ ባንክ', 'CBE', '�
   );
 });
 
-// ==================== 🟢 BUY USDT FLOW ====================
+// ==================== BUY USDT FLOW ====================
 bot.hears(['🟢 USDT ለመግዛት', 'USDT ለመግዛት'], async (ctx) => {
   const msg = 
     `📈 <b>የዛሬ የ USDT መግዣ ተመን (Rate)</b>\n\n` +
@@ -181,9 +234,11 @@ bot.hears(['🟢 USDT ለመግዛት', 'USDT ለመግዛት'], async (ctx) => 
 });
 
 bot.hears(['✅ ተስማምቻለሁ (መግዛት)', 'ተስማምቻለሁ (መግዛት)'], async (ctx) => {
-  const state = getState(ctx.from.id);
-  state.step = 'waiting_buy_amount';
-  state.data = { orderType: 'buy' };
+  await User.findOneAndUpdate(
+    { telegramId: ctx.from.id },
+    { step: 'waiting_buy_amount', 'tempOrder.orderType': 'buy' },
+    { upsert: true }
+  );
 
   return ctx.reply(
     `📥 <b>መግዛት የሚፈልጉትን የ USDT መጠን በቁጥር ብቻ ያስገቡ፡-</b>\n\n⛔ <b><i>ዝቅተኛው መጠን 1 💲 USDT ነው!</i></b>`,
@@ -194,9 +249,10 @@ bot.hears(['✅ ተስማምቻለሁ (መግዛት)', 'ተስማምቻለሁ (�
 // ==================== TEXT INPUTS ====================
 bot.on('text', async (ctx) => {
   const text = ctx.message.text.trim();
-  const state = getState(ctx.from.id);
+  const user = await getUser(ctx.from.id, ctx);
+  const step = user.step || 'none';
 
-  if (state.step === 'waiting_sell_amount') {
+  if (step === 'waiting_sell_amount') {
     const amount = parseFloat(text);
     if (isNaN(amount) || amount < 0.5) {
       return ctx.reply('⚠️ <b>እባክዎ ትክክለኛ መጠን ያስገቡ! (ዝቅተኛው 0.5 USDT ነው)</b>', { parse_mode: 'HTML' });
@@ -207,10 +263,15 @@ bot.on('text', async (ctx) => {
     else if (amount > 15.0) rate = 182;
 
     const totalEtb = (amount * rate).toFixed(2);
-    state.step = 'waiting_bank_selection';
-    state.data.amount = amount;
-    state.data.rate = rate;
-    state.data.totalEtb = totalEtb;
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      {
+        step: 'waiting_bank_selection',
+        'tempOrder.amount': amount,
+        'tempOrder.rate': rate,
+        'tempOrder.totalEtb': totalEtb
+      }
+    );
 
     const bankMsg = 
       `💵 <b>የሚሸጡት መጠን፦</b> <b>${amount} USDT</b>\n` +
@@ -226,7 +287,7 @@ bot.on('text', async (ctx) => {
     return ctx.reply(bankMsg, { parse_mode: 'HTML', ...bankKb });
   }
 
-  if (state.step === 'waiting_telebirr') {
+  if (step === 'waiting_telebirr') {
     let clean = text.replace(/[^0-9]/g, '');
     if (clean.length === 9 && clean.startsWith('9')) clean = '0' + clean;
 
@@ -234,8 +295,10 @@ bot.on('text', async (ctx) => {
       return ctx.reply('⚠️ <b>ያስገቡት የቴሌብር ስልክ ትክክል አይደለም!</b> (ምሳሌ፦ <code>0912345678</code>)', { parse_mode: 'HTML' });
     }
 
-    state.step = 'waiting_account_name';
-    state.data.accountOrWallet = clean;
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { step: 'waiting_account_name', 'tempOrder.accountOrWallet': clean }
+    );
 
     return ctx.reply(
       `👤 <b>እባክዎ የ Telebirr አካውንትዎን ሙሉ ስም ያስገቡ፡-</b>\n\n💡 <b>ምሳሌ፦</b> Abebe Kebede`,
@@ -243,14 +306,16 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  if (state.step === 'waiting_cbe') {
+  if (step === 'waiting_cbe') {
     const clean = text.replace(/[^0-9]/g, '');
     if (clean.length !== 13 || !clean.startsWith('1000')) {
       return ctx.reply('⚠️ <b>የ CBE አካውንት 13 ድጂት እና በ 1000 የሚጀምር መሆን አለበት!</b>', { parse_mode: 'HTML' });
     }
 
-    state.step = 'waiting_account_name';
-    state.data.accountOrWallet = clean;
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { step: 'waiting_account_name', 'tempOrder.accountOrWallet': clean }
+    );
 
     return ctx.reply(
       `👤 <b>እባክዎ የባንክ አካውንትዎን ሙሉ ስም ያስገቡ፡-</b>\n\n💡 <b>ምሳሌ፦</b> Abebe Kebede`,
@@ -258,11 +323,13 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  if (state.step === 'waiting_account_name') {
+  if (step === 'waiting_account_name') {
     if (text.length < 3) return ctx.reply('⚠️ እባክዎ ትክክለኛ ሙሉ ስም ያስገቡ!');
 
-    state.step = 'waiting_sell_network';
-    state.data.accountName = text;
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { step: 'waiting_sell_network', 'tempOrder.accountName': text }
+    );
 
     const askNet = 
       `✅ <b>የክፍያ መቀበያ መረጃዎ ተመዝግቧል!</b>\n` +
@@ -278,8 +345,8 @@ bot.on('text', async (ctx) => {
     return ctx.reply(askNet, { parse_mode: 'HTML', ...netKb });
   }
 
-  if (state.step === 'waiting_sell_network') {
-    const sellAmt = state.data.amount || 1;
+  if (step === 'waiting_sell_network') {
+    const sellAmt = user.tempOrder?.amount || 1;
     let promptAddr = '';
 
     if (text.includes('Binance ID')) {
@@ -294,8 +361,10 @@ bot.on('text', async (ctx) => {
       return ctx.reply('⚠️ እባክዎ ከታች ካሉት አማራጮች አንዱን ይምረጡ።');
     }
 
-    state.step = 'waiting_screenshot';
-    state.data.bankOrNetwork = text;
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { step: 'waiting_screenshot', 'tempOrder.bankOrNetwork': text }
+    );
 
     return ctx.reply(
       promptAddr + `\n\n📸 <b>ክፍያውን እንደፈጸሙ የደረሰኝ ስክሪንሾት (Screenshot) ከስር ይላኩ፡-</b>`,
@@ -303,17 +372,22 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  if (state.step === 'waiting_buy_amount') {
+  if (step === 'waiting_buy_amount') {
     const amount = parseFloat(text);
     if (isNaN(amount) || amount < 1) {
       return ctx.reply('⚠️ <b>እባክዎ ትክክለኛ መጠን ያስገቡ! (ዝቅተኛው መግዛት 1 USDT ነው)</b>', { parse_mode: 'HTML' });
     }
 
     const totalEtb = (amount * 193).toFixed(2);
-    state.step = 'waiting_admin_buy_approval';
-    state.data.amount = amount;
-    state.data.rate = 193;
-    state.data.totalEtb = totalEtb;
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      {
+        step: 'waiting_admin_buy_approval',
+        'tempOrder.amount': amount,
+        'tempOrder.rate': 193,
+        'tempOrder.totalEtb': totalEtb
+      }
+    );
 
     await ctx.reply(
       `⏳ <b>የትዕዛዝ ጥያቄዎ ወደ Admin ተልኳል!</b>\n\n` +
@@ -341,7 +415,7 @@ bot.on('text', async (ctx) => {
     return ctx.telegram.sendMessage(ADMIN_ID, adminMsg, { parse_mode: 'HTML', ...adminKb });
   }
 
-  if (state.step === 'waiting_buy_network') {
+  if (step === 'waiting_buy_network') {
     let promptMsg = '';
     if (text.includes('Binance ID')) {
       promptMsg = '🆔 <b>እባክዎ የ Binance Pay ID ቁጥርዎን ያስገቡ፡-</b>\n\n💡 <b>ምሳሌ፦</b> <code>1197432698</code>';
@@ -355,19 +429,24 @@ bot.on('text', async (ctx) => {
       return ctx.reply('⚠️ እባክዎ ከታች ካሉት አማራጮች አንዱን ይምረጡ።');
     }
 
-    state.step = 'waiting_wallet_address';
-    state.data.bankOrNetwork = text;
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { step: 'waiting_wallet_address', 'tempOrder.bankOrNetwork': text }
+    );
 
     return ctx.reply(promptMsg, { parse_mode: 'HTML', ...cancelKeyboard });
   }
 
-  if (state.step === 'waiting_wallet_address') {
-    state.step = 'waiting_screenshot';
-    state.data.accountOrWallet = text;
+  if (step === 'waiting_wallet_address') {
+    await User.findOneAndUpdate(
+      { telegramId: ctx.from.id },
+      { step: 'waiting_screenshot', 'tempOrder.accountOrWallet': text }
+    );
 
-    const buyAmt = state.data.amount;
-    const totalEtb = state.data.totalEtb;
-    const net = state.data.bankOrNetwork;
+    const updatedUser = await User.findOne({ telegramId: ctx.from.id });
+    const buyAmt = updatedUser.tempOrder?.amount;
+    const totalEtb = updatedUser.tempOrder?.totalEtb;
+    const net = updatedUser.tempOrder?.bankOrNetwork;
 
     const payAccounts = 
       `💳 <b>የክፍያ መፈጸሚያ የባንክ ሂሳቦች</b>\n` +
@@ -386,28 +465,28 @@ bot.on('text', async (ctx) => {
     return ctx.reply(payAccounts, { parse_mode: 'HTML', ...cancelKeyboard });
   }
 
-  // ያልታወቀ ጽሑፍ ሲመጣ በስህተት እንዳይዘጋ ወደ ዋናው ሜኑ ይመልሰዋል
   return ctx.reply('👇 እባክዎ ከታች ካሉት አማራጮች ይምረጡ፦', mainKeyboard);
 });
 
-// ==================== UNIVERSAL PHOTO HANDLER (ማንኛውም ፎቶ ቢላክ) ====================
-async function handleProofPhoto(ctx, fileId) {
+// ==================== SCREENSHOT / PROOF HANDLER ====================
+async function handleProof(ctx, fileId) {
   // 1. Admin ደረሰኝ ሲልክ
   if (ctx.from.id === ADMIN_ID) {
-    const adminState = getState(ADMIN_ID);
+    const adminUser = await User.findOne({ telegramId: ADMIN_ID });
     let orderId = '';
-    if (adminState.step?.startsWith('admin_waiting_proof_')) {
-      orderId = adminState.step.replace('admin_waiting_proof_', '');
+    if (adminUser?.step?.startsWith('admin_waiting_proof_')) {
+      orderId = adminUser.step.replace('admin_waiting_proof_', '');
     } else {
-      const list = Array.from(allOrders.keys());
-      orderId = list[list.length - 1];
+      const last = await Order.findOne().sort({ createdAt: -1 });
+      orderId = last ? last.orderId : '';
     }
 
-    const order = allOrders.get(orderId);
+    const order = await Order.findOne({ orderId });
     if (!order) return ctx.reply('⚠️ ይህ ትዕዛዝ አልተገኘም!');
 
     order.status = '✅ ተጠናቋል (Completed)';
-    adminState.step = 'none';
+    await order.save();
+    await User.findOneAndUpdate({ telegramId: ADMIN_ID }, { step: 'none' });
 
     let userDoneMsg = '';
     if (order.orderType === 'sell') {
@@ -432,12 +511,12 @@ async function handleProofPhoto(ctx, fileId) {
     }
   }
 
-  // 2. ተጠቃሚ/ደንበኛ ስክሪንሾት ሲልክ (ስቴፑ ቢያመልጥ እንኳ ያለምንም ስህተት ይቀበለዋል)
-  const state = getState(ctx.from.id);
-  const temp = state.data || {};
+  // 2. ተጠቃሚ ስክሪንሾት ሲልክ
+  const user = await getUser(ctx.from.id, ctx);
+  const temp = user.tempOrder || {};
   const orderId = 'ORD-' + Date.now();
 
-  const newOrder = {
+  await Order.create({
     orderId,
     telegramId: ctx.from.id,
     username: ctx.from.username || '',
@@ -451,11 +530,9 @@ async function handleProofPhoto(ctx, fileId) {
     accountName: temp.accountName || '',
     userProofPhotoId: fileId,
     status: '⏳ በመጠባበቅ ላይ (Pending)'
-  };
+  });
 
-  allOrders.set(orderId, newOrder);
-  state.step = 'none';
-  state.data = {};
+  await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
 
   const successMsg = 
     `✅ <b>የክፍያ ደረሰኝዎ በተሳካ ሁኔታ ደርሶናል!</b>\n\n` +
@@ -464,17 +541,17 @@ async function handleProofPhoto(ctx, fileId) {
   await ctx.reply(successMsg, { parse_mode: 'HTML', ...mainKeyboard });
 
   let adminReport = '';
-  if (newOrder.orderType === 'buy') {
+  if (temp.orderType === 'buy') {
     adminReport = 
       `🟢 <b>አዲስ የUSDT ግዢ (Buy) ደረሰኝ ደርሷል!</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🆔 <b>የትዕዛዝ ቁጥር፦</b> <code>${orderId}</code>\n` +
       `👤 <b>ደንበኛ፦</b> @${ctx.from.username || 'የለውም'} (${ctx.from.first_name})\n` +
       `🆔 <b>Telegram ID፦</b> <code>${ctx.from.id}</code>\n` +
-      `💵 <b>የሚገዛው መጠን፦</b> <b>${newOrder.amount} USDT</b>\n` +
-      `💰 <b>ደንበኛው የከፈለው ብር፦</b> <b>${newOrder.totalEtb} ETB</b>\n` +
-      `🔗 <b>ኔትወርክ፦</b> ${newOrder.bankOrNetwork}\n` +
-      `🎯 <b>መላኪያ Wallet/ID፦</b> <code>${newOrder.accountOrWallet}</code>`;
+      `💵 <b>የሚገዛው መጠን፦</b> <b>${temp.amount || 0} USDT</b>\n` +
+      `💰 <b>ደንበኛው የከፈለው ብር፦</b> <b>${temp.totalEtb || 0} ETB</b>\n` +
+      `🔗 <b>ኔትወርክ፦</b> ${temp.bankOrNetwork}\n` +
+      `🎯 <b>መላኪያ Wallet/ID፦</b> <code>${temp.accountOrWallet}</code>`;
   } else {
     adminReport = 
       `🚨 <b>አዲስ የUSDT ሽያጭ (Sell) ደረሰኝ ደርሷል!</b>\n` +
@@ -482,11 +559,11 @@ async function handleProofPhoto(ctx, fileId) {
       `🆔 <b>የትዕዛዝ ቁጥር፦</b> <code>${orderId}</code>\n` +
       `👤 <b>ደንበኛ፦</b> @${ctx.from.username || 'የለውም'} (${ctx.from.first_name})\n` +
       `🆔 <b>Telegram ID፦</b> <code>${ctx.from.id}</code>\n` +
-      `🏦 <b>ባንክ፦</b> <b>${newOrder.bankOrNetwork}</b>\n` +
-      `👤 <b>የአካውንት ስም፦</b> <b>${newOrder.accountName}</b>\n` +
-      `📱 <b>የደንበኛው አካውንት/ስልክ፦</b> <code>${newOrder.accountOrWallet}</code>\n` +
-      `💵 <b>የሚሸጠው መጠን፦</b> <b>${newOrder.amount} USDT</b>\n` +
-      `💰 <b>እርስዎ የሚልኩለት ብር፦</b> <b>${newOrder.totalEtb} ETB</b>`;
+      `🏦 <b>ባንክ፦</b> <b>${temp.bank}</b>\n` +
+      `👤 <b>የአካውንት ስም፦</b> <b>${temp.accountName}</b>\n` +
+      `📱 <b>የደንበኛው አካውንት/ስልክ፦</b> <code>${temp.accountOrWallet}</code>\n` +
+      `💵 <b>የሚሸጠው መጠን፦</b> <b>${temp.amount || 0} USDT</b>\n` +
+      `💰 <b>እርስዎ የሚልኩለት ብር፦</b> <b>${temp.totalEtb || 0} ETB</b>`;
   }
 
   const adminActions = Markup.inlineKeyboard([
@@ -503,19 +580,18 @@ async function handleProofPhoto(ctx, fileId) {
 
 bot.on('photo', async (ctx) => {
   const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-  return handleProofPhoto(ctx, fileId);
+  return handleProof(ctx, fileId);
 });
 
 bot.on('document', async (ctx) => {
   const fileId = ctx.message.document.file_id;
-  return handleProofPhoto(ctx, fileId);
+  return handleProof(ctx, fileId);
 });
 
 // ==================== ADMIN ACTIONS ====================
 bot.action(/accept_buy_(\d+)/, async (ctx) => {
   const targetUserId = parseInt(ctx.match[1]);
-  const userStateObj = getState(targetUserId);
-  userStateObj.step = 'waiting_buy_network';
+  await User.findOneAndUpdate({ telegramId: targetUserId }, { step: 'waiting_buy_network' });
 
   const askNet = 
     `🎉 <b>ትዕዛዝዎ በ Admin ተፈቅዷል!</b> ✅\n\n` +
@@ -535,9 +611,7 @@ bot.action(/accept_buy_(\d+)/, async (ctx) => {
 
 bot.action(/reject_buy_(\d+)/, async (ctx) => {
   const targetUserId = parseInt(ctx.match[1]);
-  const userStateObj = getState(targetUserId);
-  userStateObj.step = 'none';
-  userStateObj.data = {};
+  await User.findOneAndUpdate({ telegramId: targetUserId }, { step: 'none', tempOrder: {} });
 
   const rejectMsg = 
     `🚫 <b>የትዕዛዝ ጥያቄዎ ውድቅ ተደርጓል!</b> ❌\n` +
@@ -552,8 +626,7 @@ bot.action(/reject_buy_(\d+)/, async (ctx) => {
 
 bot.action(/pay_order_(.+)/, async (ctx) => {
   const orderId = ctx.match[1];
-  const adminState = getState(ADMIN_ID);
-  adminState.step = `admin_waiting_proof_${orderId}`;
+  await User.findOneAndUpdate({ telegramId: ADMIN_ID }, { step: `admin_waiting_proof_${orderId}` });
 
   return ctx.reply(
     `📸 <b>ትዕዛዝ #${orderId}</b>\n\nእባክዎ ለደንበኛው የፈጸሙበትን <b>የክፍያ ደረሰኝ (Screenshot)</b> አሁን ይላኩ፡-`,
@@ -563,9 +636,10 @@ bot.action(/pay_order_(.+)/, async (ctx) => {
 
 bot.action(/reject_order_(.+)/, async (ctx) => {
   const orderId = ctx.match[1];
-  const order = allOrders.get(orderId);
+  const order = await Order.findOne({ orderId });
   if (order) {
     order.status = '❌ ውድቅ ተደርጓል (Rejected)';
+    await order.save();
     const rejectMsg = 
       `🚫 <b>ትዕዛዝዎ ውድቅ ተደርጓል!</b> ❌\n\n` +
       `⚠️ <b>የላኩት የክፍያ ስክሪንሾት ትክክል አይደለም።</b>\n\n` +
@@ -578,7 +652,7 @@ bot.action(/reject_order_(.+)/, async (ctx) => {
 });
 
 bot.launch().then(() => {
-  console.log('Viva P2P Exchange Bot Cleanly Started!');
+  console.log('Viva P2P Exchange Bot Cleanly Started with MongoDB!');
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
