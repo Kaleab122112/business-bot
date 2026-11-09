@@ -19,7 +19,7 @@ const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
 const MONGO_URI = process.env.MONGO_URI;
 
 // በዋናው ሜኑ ላይ የሚወጣው ባነር ፎቶ ሊንክ (የራስህን ፎቶ መቀየር ትችላለህ)
-const MENU_PHOTO_URL = 'AgACAgQAAxkBAAIDGGroVFSYBam9Hb9qTn_0G9BanoXKAAKxDmsbULlAU_OIKhvX2r2pAQADAgADeQADPQQ';
+const MENU_PHOTO_URL = 'https://i.ibb.co/6PZqZ9k/viva-banner.jpg';
 // 3. Database Connection
 if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
