@@ -14,7 +14,7 @@ http.createServer((req, res) => {
 
 // 2. Settings
 const BOT_TOKEN = process.env.BOT_TOKEN || '9237982046:AAHH5keW0NVZZqkFQLskv6bq9ew3i09A5Qg';
-const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
+const ADMIN_ID = parseInt(process.env.ADMIN_ID || '5596267812');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
 const MONGO_URI = process.env.MONGO_URI;
 
