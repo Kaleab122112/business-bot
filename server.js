@@ -537,7 +537,7 @@ bot.on('text', async (ctx) => {
       // መጠኑ ከ 5 USDT በታች ከሆነ ማስጠንቀቂያ ከታች ይሰጣል
       if (buyAmt < 5) {
         warningSuffix = 
-          `\n\n<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ማስጠንቀቂያ፦ በ <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT (BEP-20) ዝቅተኛው የመላኪያ መጠን 5 <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT ነው! ከ <tg-emoji emoji-id="5445267414562389170">5️⃣</tg-emoji> USDT በታች የሚገዙ ከሆነ ትዕዛዝዎ በ Admin ውድቅ ይደረጋል!</b>`;
+          `\n\n<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ማስጠንቀቂያ፦ በ <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT (BEP-20) ዝቅተኛው የመግዛት መጠን 5 <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> ነው! <tg-emoji emoji-id="5445267414562389170">5️⃣</tg-emoji> ከ 5 USDT በታች የሚገዙ ከሆነ ትዕዛዝዎ በ Admin ውድቅ ይደረጋል!</b>`;
       }
 
       promptMsg = 
