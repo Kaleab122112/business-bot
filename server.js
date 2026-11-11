@@ -14,7 +14,7 @@ http.createServer((req, res) => {
 
 // 2. Settings
 const BOT_TOKEN = process.env.BOT_TOKEN || '9237982046:AAHH5keW0NVZZqkFQLskv6bq9ew3i09A5Qg';
-const ADMIN_ID = parseInt(process.env.ADMIN_ID || '5596267812');
+const ADMIN_ID = parseInt(process.env.ADMIN_ID || '8792715170');
 const MAIN_CHANNEL = process.env.MAIN_CHANNEL || '@vivaonlinetech';
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -76,7 +76,7 @@ async function getUser(id, ctx) {
   }
 }
 
-// ኪቦርዶች (የቴሌግራም አዝራሮች መደበኛ ጽሑፍ/ኢሞጂ ብቻ ይቀበላሉ)
+// ኪቦርዶች
 const mainKeyboard = Markup.keyboard([
   ['🔴 USDT ለመሸጥ', '🟢 USDT ለመግዛት'],
   ['📊 የዛሬ ዋጋ', '📋 ትዕዛዞቼ'],
@@ -359,6 +359,7 @@ bot.on('text', async (ctx) => {
   const user = await getUser(ctx.from.id, ctx);
   const step = user.step || 'none';
 
+  // 1. Sell Amount
   if (step === 'waiting_sell_amount') {
     const amount = parseFloat(text);
     if (isNaN(amount) || amount < 0.5) {
@@ -397,6 +398,7 @@ bot.on('text', async (ctx) => {
     return ctx.reply(bankMsg, { parse_mode: 'HTML', ...bankKb });
   }
 
+  // 2. Sell Telebirr Input
   if (step === 'waiting_telebirr') {
     let clean = text.replace(/[^0-9]/g, '');
     if (clean.length === 9 && clean.startsWith('9')) clean = '0' + clean;
@@ -419,6 +421,7 @@ bot.on('text', async (ctx) => {
     );
   }
 
+  // 3. Sell CBE Input
   if (step === 'waiting_cbe') {
     const clean = text.replace(/[^0-9]/g, '');
     if (clean.length !== 13 || !clean.startsWith('1000')) {
@@ -439,6 +442,7 @@ bot.on('text', async (ctx) => {
     );
   }
 
+  // 4. Account Name
   if (step === 'waiting_account_name') {
     if (text.length < 3) {
       return ctx.reply(`<tg-emoji emoji-id="6267039884016358504">⚠️</tg-emoji> እባክዎ ትክክለኛ ሙሉ ስም ያስገቡ!`);
@@ -463,6 +467,7 @@ bot.on('text', async (ctx) => {
     return ctx.reply(askNet, { parse_mode: 'HTML', ...netKb });
   }
 
+  // 5. Sell Network Selection
   if (step === 'waiting_sell_network') {
     const sellAmt = user.tempOrder?.amount || 1;
     let promptAddr = '';
@@ -490,6 +495,7 @@ bot.on('text', async (ctx) => {
     );
   }
 
+  // 6. Buy Amount
   if (step === 'waiting_buy_amount') {
     const amount = parseFloat(text);
     if (isNaN(amount) || amount < 1) {
@@ -524,18 +530,30 @@ bot.on('text', async (ctx) => {
     return ctx.reply(askNet, { parse_mode: 'HTML', ...netKb });
   }
 
+  // 7. Buy Network (with 5 USDT minimum check)
   if (step === 'waiting_buy_network') {
+    const buyAmt = user.tempOrder?.amount || 0;
+
+    // ⚠️ USDT (BEP-20) ከመረጠ እና መጠኑ ከ 5 USDT በታች ከሆነ የሚሰጥ ማስጠንቀቂያ
+    if (text.includes('USDT') && buyAmt < 5) {
+      return ctx.reply(
+        `<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ይቅርታ፣ በ USDT (BEP-20) ኔትወርክ ዝቅተኛው የመላኪያ መጠን 5 USDT ነው!</b>\n\n` +
+        `<tg-emoji emoji-id="5471895949804575096">💡</tg-emoji> <i>እባክዎ እንደ <b>Binance ID</b> ያሉ ሌሎች አውታሮችን ይምረጡ ወይም ትዕዛዝዎን ሰርዘው መጠኑን ይጨምሩ።</i>`,
+        { parse_mode: 'HTML' }
+      );
+    }
+
     let promptMsg = '';
     if (text.includes('Binance ID')) {
-      promptMsg = `<tg-emoji emoji-id="5963087638343720061">🆔</tg-emoji> <b>እባክዎ የ Binance Pay ID ቁጥርዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5395444784611480792">💡</tg-emoji> <b>ምሳሌ፦</b> <code>1197432698</code>`;
+      promptMsg = `<tg-emoji emoji-id="5963087638343720061">🆔</tg-emoji> <b>እባክዎ የ Binance Pay ID ቁጥርዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>1197432698</code>`;
     } else if (text.includes('USDT')) {
-      promptMsg = `<tg-emoji emoji-id="5201692367437974073">🔗</tg-emoji> <b>እባክዎ የ USDT (BEP-20) መቀበያ አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5395444784611480792">💡</tg-emoji> <b>ምሳሌ፦</b> <code>0x71C83920F...</code>`;
+      promptMsg = `<tg-emoji emoji-id="5201692367437974073">🔗</tg-emoji> <b>እባክዎ የ USDT (BEP-20) መቀበያ አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>0x71C83920F...</code>`;
     } else if (text.includes('TON')) {
-      promptMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>እባክዎ የ TON Wallet አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5395444784611480792">💡</tg-emoji> <b>ምሳሌ፦</b> <code>UQCYZuyq...</code>`;
+      promptMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>እባክዎ የ TON Wallet አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>UQCYZuyq...</code>`;
     } else if (text.includes('Aptos')) {
-      promptMsg = `<tg-emoji emoji-id="5202064723922670546">🟣</tg-emoji> <b>እባክዎ የ LTC Wallet አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5395444784611480792">💡</tg-emoji> <b>ምሳሌ፦</b> <code>Lt...</code>`;
+      promptMsg = `<tg-emoji emoji-id="5202064723922670546">🟣</tg-emoji> <b>እባክዎ የ LTC Wallet አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>Lt...</code>`;
     } else {
-      return ctx.reply(`<tg-emoji emoji-id="5965043124068687455">⚠️</tg-emoji> እባክዎ ከታች ካሉት አማራጮች አንዱን ይምረጡ።`);
+      return ctx.reply(`<tg-emoji emoji-id="5467538555158943525">⚠️</tg-emoji> እባክዎ ከታች ካሉት አማራጮች አንዱን ይምረጡ።`);
     }
 
     await User.findOneAndUpdate(
@@ -546,35 +564,134 @@ bot.on('text', async (ctx) => {
     return ctx.reply(promptMsg, { parse_mode: 'HTML', ...cancelKeyboard });
   }
 
+  // 8. Buy Wallet Address -> Sends request to Admin
   if (step === 'waiting_wallet_address') {
+    const orderId = 'ORD-' + Date.now();
+    const buyAmt = user.tempOrder?.amount;
+    const totalEtb = user.tempOrder?.totalEtb;
+    const net = user.tempOrder?.bankOrNetwork;
+
+    await Order.create({
+      orderId,
+      telegramId: ctx.from.id,
+      username: ctx.from.username || '',
+      firstName: ctx.from.first_name || '',
+      orderType: 'buy',
+      amount: buyAmt,
+      totalEtb: totalEtb,
+      rate: 193,
+      bankOrNetwork: net,
+      accountOrWallet: text,
+      status: '⏳ የአድሚን ፍቃድ በመጠባበቅ ላይ'
+    });
+
     await User.findOneAndUpdate(
       { telegramId: ctx.from.id },
-      { step: 'waiting_screenshot', 'tempOrder.accountOrWallet': text }
+      { step: 'waiting_admin_buy_approval', 'tempOrder.accountOrWallet': text, 'tempOrder.currentOrderId': orderId }
     );
 
-    const updatedUser = await User.findOne({ telegramId: ctx.from.id });
-    const buyAmt = updatedUser.tempOrder?.amount;
-    const totalEtb = updatedUser.tempOrder?.totalEtb;
-    const net = updatedUser.tempOrder?.bankOrNetwork;
-
-    const payAccounts = 
-      `<tg-emoji emoji-id="5397782960512444700">💳</tg-emoji> <b>የክፍያ መፈጸሚያ የባንክ ሂሳቦች</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የሚገዙት መጠን፦</b> <b>${buyAmt} USDT</b>\n` +
-      `<tg-emoji emoji-id="6156513311585211842">💰</tg-emoji> <b>የሚከፍሉት ጠቅላላ ብር፦</b> <b>${totalEtb} ETB</b>\n` +
+    // ለተጠቃሚው የሚላክ መጠበቂያ መልእክት
+    await ctx.reply(
+      `<tg-emoji emoji-id="5201691993775818138">⏳</tg-emoji> <b>የትዕዛዝ ጥያቄዎ ወደ Admin ተልኳል!</b>\n\n` +
+      `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>መጠን፦</b> <b>${buyAmt} USDT</b> (${totalEtb} ETB)\n` +
       `<tg-emoji emoji-id="5445353829304387411">🎯</tg-emoji> <b>መቀበያዎ፦</b> <code>${text}</code> (${net})\n\n` +
-      `<tg-emoji emoji-id="5411225014148014586">👉</tg-emoji> <b>እባክዎ ትክክለኛውን ብር ከታች ባሉት አማራጮች ገቢ ያድርጉ፡-</b>\n\n` +
-      `<tg-emoji emoji-id="5960632377339285724">📱</tg-emoji> <b>Telebirr፦</b> <code>0962963500</code>\n` +
-      `<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> <b>ስም፦</b> <b>Asegidew</b>\n\n` +
-      `<tg-emoji emoji-id="5961054379350955385">🏦</tg-emoji> <b>CBE ንግድ ባንክ፦</b> <code>1000764146453</code>\n` +
-      `<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> <b>ስም፦</b> <b>Rediet Mulugeta</b>\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `<tg-emoji emoji-id="5253742260054409879">📸</tg-emoji> <b>ክፍያውን እንደፈጸሙ የከፈሉበትን ደረሰኝ (Screenshot) ከስር ይላኩ፡-</b>`;
+      `<tg-emoji emoji-id="5400250414929041085">👨‍💻</tg-emoji> <b>እባክዎ Admin እስኪያረጋግጥ ጥቂት ሰከንዶችን ይጠብቁ፤ እንደተፈቀደ የክፍያ አካውንቶች ይላኩሎታል።</b>`,
+      { parse_mode: 'HTML', ...cancelKeyboard }
+    );
 
-    return ctx.reply(payAccounts, { parse_mode: 'HTML', ...cancelKeyboard });
+    // ለ Admin የሚላክ የፍቃድ መጠየቂያ
+    const adminReqMsg = 
+      `<tg-emoji emoji-id="5397782960512444700">🔔</tg-emoji> <b>አዲስ የ USDT ግዢ ጥያቄ ደርሷል (ፍቃድ ይጠይቃል)!</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `<tg-emoji emoji-id="5332724926216428039">🆔</tg-emoji> <b>ትዕዛዝ ቁጥር፦</b> <code>${orderId}</code>\n` +
+      `<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> <b>ደንበኛ፦</b> @${ctx.from.username || 'የለውም'} (${ctx.from.first_name})\n` +
+      `<tg-emoji emoji-id="6266794310671275367">🆔</tg-emoji> <b>ID፦</b> <code>${ctx.from.id}</code>\n` +
+      `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የሚገዛው መጠን፦</b> <b>${buyAmt} USDT</b>\n` +
+      `<tg-emoji emoji-id="5197371802136892976">💰</tg-emoji> <b>የሚከፍለው ብር፦</b> <b>${totalEtb} ETB</b>\n` +
+      `<tg-emoji emoji-id="5224450179368767019">🔗</tg-emoji> <b>ኔትወርክ፦</b> ${net}\n` +
+      `<tg-emoji emoji-id="5445353829304387411">🎯</tg-emoji> <b>መቀበያ Wallet/ID፦</b> <code>${text}</code>\n\n` +
+      `<tg-emoji emoji-id="5373141891321699086">👉</tg-emoji> <b>ይህ ሰው ክፍያ እንዲፈጽም ይፈቀድ?</b>`;
+
+    const adminReqKb = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('✅ ፍቀድ (ክፍያ ይላክለት)', `permit_buy_${orderId}`),
+        Markup.button.callback('❌ ከልክል (Reject)', `deny_buy_${orderId}`)
+      ]
+    ]);
+
+    return ctx.telegram.sendMessage(ADMIN_ID, adminReqMsg, { parse_mode: 'HTML', ...adminReqKb });
   }
 
   return sendMainMenu(ctx);
+});
+
+// ==================== 👨‍💻 ADMIN PRE-APPROVAL (ፍቃድ መስጫ) ====================
+bot.action(/permit_buy_(.+)/, async (ctx) => {
+  const orderId = ctx.match[1];
+  const order = await Order.findOne({ orderId });
+
+  if (!order) return ctx.reply('⚠️ ትዕዛዙ አልተገኘም!');
+
+  order.status = '⏳ የክፍያ ደረሰኝ በመጠባበቅ ላይ';
+  await order.save();
+
+  await User.findOneAndUpdate(
+    { telegramId: order.telegramId },
+    { step: 'waiting_screenshot' }
+  );
+
+  const payAccounts = 
+    `<tg-emoji emoji-id="5397782960512444700">💳</tg-emoji> <b>ትዕዛዝዎ ተፈቅዷል፤ ክፍያ መፈጸም ይችላሉ!</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የሚገዙት መጠን፦</b> <b>${order.amount} USDT</b>\n` +
+    `<tg-emoji emoji-id="6266818688905648040">💰</tg-emoji> <b>የሚከፍሉት ጠቅላላ ብር፦</b> <b>${order.totalEtb} ETB</b>\n` +
+    `<tg-emoji emoji-id="5445353829304387411">🎯</tg-emoji> <b>መቀበያዎ፦</b> <code>${order.accountOrWallet}</code> (${order.bankOrNetwork})\n\n` +
+    `<tg-emoji emoji-id="5415758949129404605">👉</tg-emoji> <b>እባክዎ ትክክለኛውን ብር ከታች ባሉት አማራጮች ገቢ ያድርጉ፡-</b>\n\n` +
+    `<tg-emoji emoji-id="5960632377339285724">📱</tg-emoji> <b>Telebirr፦</b> <code>0962963500</code>\n` +
+    `<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> <b>ስም፦</b> <b>Asegidew</b>\n\n` +
+    `<tg-emoji emoji-id="5961054379350955385">🏦</tg-emoji> <b>CBE ንግድ ባንክ፦</b> <code>1000764146453</code>\n` +
+    `<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> <b>ስም፦</b> <b>Rediet Mulugeta</b>\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `<tg-emoji emoji-id="5253742260054409879">📸</tg-emoji> <b>ክፍያውን እንደፈጸሙ የከፈሉበትን ደረሰኝ (Screenshot) ከስር ይላኩ፡-</b>`;
+
+  try {
+    await ctx.telegram.sendMessage(order.telegramId, payAccounts, { parse_mode: 'HTML', ...cancelKeyboard });
+  } catch (e) {
+    console.error('Error notifying user:', e.message);
+  }
+
+  await ctx.editMessageText(
+    ctx.callbackQuery.message.text + `\n\n<b><tg-emoji emoji-id="5413366476251866707">✅</tg-emoji> ተፈቅዷል፤ የባንክ መረጃ ተልኮለታል!</b>`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+bot.action(/deny_buy_(.+)/, async (ctx) => {
+  const orderId = ctx.match[1];
+  const order = await Order.findOne({ orderId });
+
+  if (!order) return ctx.reply('⚠️ ትዕዛዙ አልተገኘም!');
+
+  order.status = '❌ በ Admin ውድቅ ተደርጓል';
+  await order.save();
+
+  await User.findOneAndUpdate(
+    { telegramId: order.telegramId },
+    { step: 'none', tempOrder: {} }
+  );
+
+  try {
+    await ctx.telegram.sendMessage(
+      order.telegramId,
+      `<tg-emoji emoji-id="5434095036394387314">🚫</tg-emoji> <b>ይቅርታ፣ የ USDT ግዢ ጥያቄዎ በአድሚን ውድቅ ተደርጓል!</b>\n\n💬 ለተጨማሪ መረጃ @VT_On ያነጋግሩ።`,
+      { parse_mode: 'HTML', ...mainKeyboard }
+    );
+  } catch (e) {}
+
+  await ctx.editMessageText(
+    ctx.callbackQuery.message.text + `\n\n<b><tg-emoji emoji-id="5240241223632954241">❌</tg-emoji> ውድቅ ተደርጓል (ደንበኛው ተሰርዟል)!</b>`,
+    { parse_mode: 'HTML' }
+  );
 });
 
 // ==================== 📸 SCREENSHOT መላኪያ ክፍል ====================
@@ -584,65 +701,79 @@ async function handleUserScreenshot(ctx, fileId) {
 
   const user = await getUser(ctx.from.id, ctx);
   const temp = user.tempOrder || {};
-  const orderId = 'ORD-' + Date.now();
 
-  await Order.create({
-    orderId,
-    telegramId: ctx.from.id,
-    username: ctx.from.username || '',
-    firstName: ctx.from.first_name || '',
-    orderType: temp.orderType || 'sell',
-    amount: temp.amount || 0,
-    totalEtb: temp.totalEtb || 0,
-    rate: temp.rate || 0,
-    bankOrNetwork: temp.bankOrNetwork || temp.bank || 'Telebirr',
-    accountOrWallet: temp.accountOrWallet || '-',
-    accountName: temp.accountName || '',
-    userProofPhotoId: fileId,
-    status: '⏳ በመጠባበቅ ላይ (Pending)'
-  });
+  let order;
+  // ግዢ ከሆነ ቀደም ሲል የተፈጠረውን ትዕዛዝ እናገኛለን
+  if (temp.orderType === 'buy' && temp.currentOrderId) {
+    order = await Order.findOne({ orderId: temp.currentOrderId });
+    if (order) {
+      order.userProofPhotoId = fileId;
+      order.status = '⏳ በመጠባበቅ ላይ (ደረሰኝ ደርሷል)';
+      await order.save();
+    }
+  }
+
+  // ሽያጭ ከሆነ ወይም አዲስ ከሆነ እዚህ ይፈጠራል
+  if (!order) {
+    const orderId = 'ORD-' + Date.now();
+    order = await Order.create({
+      orderId,
+      telegramId: ctx.from.id,
+      username: ctx.from.username || '',
+      firstName: ctx.from.first_name || '',
+      orderType: temp.orderType || 'sell',
+      amount: temp.amount || 0,
+      totalEtb: temp.totalEtb || 0,
+      rate: temp.rate || 0,
+      bankOrNetwork: temp.bankOrNetwork || temp.bank || 'Telebirr',
+      accountOrWallet: temp.accountOrWallet || '-',
+      accountName: temp.accountName || '',
+      userProofPhotoId: fileId,
+      status: '⏳ በመጠባበቅ ላይ (ደረሰኝ ደርሷል)'
+    });
+  }
 
   await User.findOneAndUpdate({ telegramId: ctx.from.id }, { step: 'none', tempOrder: {} });
 
   const userReplyMsg = 
     `<tg-emoji emoji-id="5201691993775818138">✅</tg-emoji> <b>ትዕዛዝዎ እና የከፈሉበት ደረሰኝ በተሳካ ሁኔታ ደርሶናል!</b>\n\n` +
-    `<tg-emoji emoji-id="5971889748615105853">👨‍💻</tg-emoji> <b>መረጃዎ ወደ Admin ተልኳል፤ በጥቂት ደቂቃዎች ውስጥ ተጣርቶ ምላሽ ይሰጥዎታል።</b>\n\n` +
+    `<tg-emoji emoji-id="5971889748615105853">👨‍💻</tg-emoji> <b>መረጃዎ ወደ Admin ተልኳል፤ በጥቂት ደቂቃዎች ውስጥ ተጣርቶ ይላክሎታል።</b>\n\n` +
     `<tg-emoji emoji-id="5341498088408234504">🙏</tg-emoji> <b>ቪቫ ፒ ቱ ፒ (Viva P2P Exchange) ን ስለመረጡ እናመሰግናለን!</b>`;
 
   await ctx.reply(userReplyMsg, { parse_mode: 'HTML', ...mainKeyboard });
 
   let adminCaption = '';
-  if (temp.orderType === 'buy') {
+  if (order.orderType === 'buy') {
     adminCaption = 
-      `<tg-emoji emoji-id="5429651785352501917">🟢</tg-emoji> <b>አዲስ የUSDT ግዢ (Buy) ደረሰኝ ደርሷል!</b>\n` +
+      `<tg-emoji emoji-id="5429651785352501917">🟢</tg-emoji> <b>የተፈቀደው የUSDT ግዢ ደረሰኝ ደርሷል!</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `<tg-emoji emoji-id="5373012449597335010">🆔</tg-emoji> <b>የትዕዛዝ ቁጥር፦</b> <code>${orderId}</code>\n` +
-      `<tg-emoji emoji-id="6267229004311303657">👤</tg-emoji> <b>ደንበኛ፦</b> @${ctx.from.username || 'የለውም'} (${ctx.from.first_name})\n` +
-      `<tg-emoji emoji-id="6019297120886987085">🆔</tg-emoji> <b>Telegram ID፦</b> <code>${ctx.from.id}</code>\n` +
-      `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የሚገዛው መጠን፦</b> <b>${temp.amount || 0} USDT</b>\n` +
-      `<tg-emoji emoji-id="6267068789146260253">💰</tg-emoji> <b>የከፈለው ብር፦</b> <b>${temp.totalEtb || 0} ETB</b>\n` +
-      `<tg-emoji emoji-id="6267115986541877538">🔗</tg-emoji> <b>ኔትወርክ፦</b> ${temp.bankOrNetwork}\n` +
-      `<tg-emoji emoji-id="5397782960512444700">🎯</tg-emoji> <b>የደንበኛው ዋሌት/ID፦</b> <code>${temp.accountOrWallet}</code>\n\n` +
-      `<tg-emoji emoji-id="5406745015365943482">👇</tg-emoji> <b>ክፍያው ትክክል ከሆነ ያጽድቁ፡-</b>`;
+      `<tg-emoji emoji-id="5373012449597335010">🆔</tg-emoji> <b>የትዕዛዝ ቁጥር፦</b> <code>${order.orderId}</code>\n` +
+      `<tg-emoji emoji-id="6267229004311303657">👤</tg-emoji> <b>ደንበኛ፦</b> @${order.username || 'የለውም'} (${order.firstName})\n` +
+      `<tg-emoji emoji-id="6019297120886987085">🆔</tg-emoji> <b>Telegram ID፦</b> <code>${order.telegramId}</code>\n` +
+      `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የተገዛው መጠን፦</b> <b>${order.amount} USDT</b>\n` +
+      `<tg-emoji emoji-id="6267068789146260253">💰</tg-emoji> <b>የከፈለው ብር፦</b> <b>${order.totalEtb} ETB</b>\n` +
+      `<tg-emoji emoji-id="6267115986541877538">🔗</tg-emoji> <b>ኔትወርክ፦</b> ${order.bankOrNetwork}\n` +
+      `<tg-emoji emoji-id="5397782960512444700">🎯</tg-emoji> <b>የደንበኛው ዋሌት/ID፦</b> <code>${order.accountOrWallet}</code>\n\n` +
+      `👇 <b>ብር መግባቱን ካረጋገጡና USDT ከላኩ በኋላ አጽድቁ፡-</b>`;
   } else {
     adminCaption = 
       `<tg-emoji emoji-id="5429518319243775957">🚨</tg-emoji> <b>አዲስ የUSDT ሽያጭ (Sell) ደረሰኝ ደርሷል!</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `<tg-emoji emoji-id="5373012449597335010">🆔</tg-emoji> <b>የትዕዛዝ ቁጥር፦</b> <code>${orderId}</code>\n` +
-      `<tg-emoji emoji-id="6267229004311303657">👤</tg-emoji> <b>ደንበኛ፦</b> @${ctx.from.username || 'የለውም'} (${ctx.from.first_name})\n` +
-      `<tg-emoji emoji-id="6019297120886987085">🆔</tg-emoji> <b>Telegram ID፦</b> <code>${ctx.from.id}</code>\n` +
-      `<tg-emoji emoji-id="5445353829304387411">🏦</tg-emoji> <b>ባንክ፦</b> <b>${temp.bank}</b>\n` +
-      `<tg-emoji emoji-id="5445353829304387411">👤</tg-emoji> <b>የአካውንት ስም፦</b> <b>${temp.accountName}</b>\n` +
-      `<tg-emoji emoji-id="5406809207947142040">📱</tg-emoji> <b>የደንበኛው አካውንት/ስልክ፦</b> <code>${temp.accountOrWallet}</code>\n` +
-      `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የሚሸጠው መጠን፦</b> <b>${temp.amount || 0} USDT</b>\n` +
-      `<tg-emoji emoji-id="5370947515220761242">💰</tg-emoji> <b>እርስዎ የሚልኩለት ብር፦</b> <b>${temp.totalEtb || 0} ETB</b>\n\n` +
-      `<tg-emoji emoji-id="5406745015365943482">👇</tg-emoji> <b>ክፍያው ትክክል ከሆነ ያጽድቁ፡-</b>`;
+      `<tg-emoji emoji-id="5373012449597335010">🆔</tg-emoji> <b>የትዕዛዝ ቁጥር፦</b> <code>${order.orderId}</code>\n` +
+      `<tg-emoji emoji-id="6267229004311303657">👤</tg-emoji> <b>ደንበኛ፦</b> @${order.username || 'የለውም'} (${order.firstName})\n` +
+      `<tg-emoji emoji-id="6019297120886987085">🆔</tg-emoji> <b>Telegram ID፦</b> <code>${order.telegramId}</code>\n` +
+      `<tg-emoji emoji-id="5445353829304387411">🏦</tg-emoji> <b>ባንክ፦</b> <b>${order.bankOrNetwork}</b>\n` +
+      `<tg-emoji emoji-id="5445353829304387411">👤</tg-emoji> <b>የአካውንት ስም፦</b> <b>${order.accountName}</b>\n` +
+      `<tg-emoji emoji-id="5406809207947142040">📱</tg-emoji> <b>የደንበኛው አካውንት/ስልክ፦</b> <code>${order.accountOrWallet}</code>\n` +
+      `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የሚሸጠው መጠን፦</b> <b>${order.amount} USDT</b>\n` +
+      `<tg-emoji emoji-id="5370947515220761242">💰</tg-emoji> <b>እርስዎ የሚልኩለት ብር፦</b> <b>${order.totalEtb} ETB</b>\n\n` +
+      `👇 <b>ክፍያው ትክክል ከሆነ ያጽድቁ፡-</b>`;
   }
 
   const adminButtons = Markup.inlineKeyboard([
     [
-      Markup.button.callback('✅ አጽድቅ (Approve)', `approve_order_${orderId}`),
-      Markup.button.callback('❌ ውድቅ አድርግ (Reject)', `reject_order_${orderId}`)
+      Markup.button.callback('✅ አጽድቅ (Approve)', `approve_order_${order.orderId}`),
+      Markup.button.callback('❌ ውድቅ አድርግ (Reject)', `reject_order_${order.orderId}`)
     ]
   ]);
 
@@ -671,7 +802,7 @@ bot.on('document', async (ctx) => {
   return handleUserScreenshot(ctx, fileId);
 });
 
-// ==================== 👨‍💻 ADMIN APPROVAL ACTIONS ====================
+// ==================== 👨‍💻 FINAL APPROVAL ACTIONS ====================
 bot.action(/approve_order_(.+)/, async (ctx) => {
   const orderId = ctx.match[1];
   const order = await Order.findOne({ orderId });
