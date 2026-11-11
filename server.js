@@ -264,9 +264,9 @@ bot.hears(['🔴 USDT ለመሸጥ', 'USDT ለመሸጥ'], async (ctx) => {
     `<tg-emoji emoji-id="5429518319243775957">🔴</tg-emoji> <b>የ USDT መሸጫ ገጽ (SELL USDT)</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
     `<tg-emoji emoji-id="5231200819986047254">📊</tg-emoji> <b>የዛሬ የመሸጫ ተመኖች (Rates)፦</b>\n\n` +
-    `• <tg-emoji emoji-id="5972103023806123551">🔸</tg-emoji> <b>ከ 0.5 – 0.99 USDT፦</b> <b>175 ETB</b>\n\` +
-    `• <tg-emoji emoji-id="5971895340662526314">🔹</tg-emoji> <b>ከ 1.0 – 15.0 USDT፦</b> <b>180 ETB</b>\n\` +
-    `• <tg-emoji emoji-id="5972216853324371758">💎</tg-emoji> <b>ከ 16.0 USDT በላይ፦</b> <b>182 ETB</b>\n\` +
+    `• <tg-emoji emoji-id="5972103023806123551">🔸</tg-emoji> <b>ከ 0.5 – 0.99 USDT፦</b> <b>175 ETB</b>\n` +
+    `• <tg-emoji emoji-id="5971895340662526314">🔹</tg-emoji> <b>ከ 1.0 – 15.0 USDT፦</b> <b>180 ETB</b>\n` +
+    `• <tg-emoji emoji-id="5972216853324371758">💎</tg-emoji> <b>ከ 16.0 USDT በላይ፦</b> <b>182 ETB</b>\n\n` +
     `<tg-emoji emoji-id="5240241223632954241">🔻</tg-emoji> <b>ዝቅተኛ የመሸጫ መጠን፦</b> <b>0.5 USDT</b>\n\n` +
     `<tg-emoji emoji-id="5397782960512444700">👉</tg-emoji> <b>ለመቀጠል «<tg-emoji emoji-id="6267118537752450044">✅</tg-emoji> ተስማምቻለሁ» የሚለውን ይጫኑ፡-</b>`;
 
