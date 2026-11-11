@@ -537,7 +537,7 @@ bot.on('text', async (ctx) => {
     // ⚠️ USDT (BEP-20) ከመረጠ እና መጠኑ ከ 5 USDT በታች ከሆነ የሚሰጥ ማስጠንቀቂያ
     if (text.includes('USDT') && buyAmt < 5) {
       return ctx.reply(
-        `<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ይቅርታ፣ በ USDT (BEP-20) ኔትወርክ ዝቅተኛው የመላኪያ መጠን 5 USDT ነው!</b>\n\n` +
+        `<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ይቅርታ፣ በ <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT (BEP-20) ኔትወርክ ዝቅተኛው የመላኪያ መጠን 5 <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT ነው!</b>\n\n` +
         `<tg-emoji emoji-id="5471895949804575096">💡</tg-emoji> <i>እባክዎ እንደ <b>Binance ID</b> ያሉ ሌሎች አውታሮችን ይምረጡ ወይም ትዕዛዝዎን ሰርዘው መጠኑን ይጨምሩ።</i>`,
         { parse_mode: 'HTML' }
       );
