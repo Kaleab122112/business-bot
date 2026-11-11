@@ -532,17 +532,18 @@ bot.on('text', async (ctx) => {
     if (text.includes('Binance ID')) {
       promptMsg = `<tg-emoji emoji-id="5963087638343720061">🆔</tg-emoji> <b>እባክዎ የ Binance Pay ID ቁጥርዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>1197432698</code>`;
     } else if (text.includes('USDT')) {
-      let warningPrefix = '';
+      let warningSuffix = '';
 
-      // መጠኑ ከ 5 USDT በታች ከሆነ ማስጠንቀቂያ ይሰጣል
+      // መጠኑ ከ 5 USDT በታች ከሆነ ማስጠንቀቂያ ከታች ይሰጣል
       if (buyAmt < 5) {
-        warningPrefix = 
-          `<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ማስጠንቀቂያ፦ በ <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT (BEP-20) ዝቅተኛው የመላኪያ መጠን 5 <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT ነው! ከ <tg-emoji emoji-id="5445267414562389170">5️⃣</tg-emoji> USDT በታች የሚገዙ ከሆነ ትዕዛዝዎ በ Admin ውድቅ ይደረጋል!</b>\n\n`;
+        warningSuffix = 
+          `\n\n<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ማስጠንቀቂያ፦ በ <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT (BEP-20) ዝቅተኛው የመላኪያ መጠን 5 <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT ነው! ከ <tg-emoji emoji-id="5445267414562389170">5️⃣</tg-emoji> USDT በታች የሚገዙ ከሆነ ትዕዛዝዎ በ Admin ውድቅ ይደረጋል!</b>`;
       }
 
       promptMsg = 
-        warningPrefix +
-        `<tg-emoji emoji-id="5201692367437974073">🔗</tg-emoji> <b>እባክዎ የ USDT (BEP-20) መቀበያ አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>0x71C83920F...</code>`;
+        `<tg-emoji emoji-id="5201692367437974073">🔗</tg-emoji> <b>እባክዎ የ USDT (BEP-20) መቀበያ አድራሻዎን ያስገቡ፡-</b>\n\n` +
+        `<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>0x71C83920F...</code>` +
+        warningSuffix;
     } else if (text.includes('TON')) {
       promptMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>እባክዎ የ TON Wallet አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>UQCYZuyq...</code>`;
     } else if (text.includes('Aptos')) {
