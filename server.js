@@ -359,7 +359,6 @@ bot.on('text', async (ctx) => {
   const user = await getUser(ctx.from.id, ctx);
   const step = user.step || 'none';
 
-  // 1. Sell Amount
   if (step === 'waiting_sell_amount') {
     const amount = parseFloat(text);
     if (isNaN(amount) || amount < 0.5) {
@@ -398,7 +397,6 @@ bot.on('text', async (ctx) => {
     return ctx.reply(bankMsg, { parse_mode: 'HTML', ...bankKb });
   }
 
-  // 2. Sell Telebirr Input
   if (step === 'waiting_telebirr') {
     let clean = text.replace(/[^0-9]/g, '');
     if (clean.length === 9 && clean.startsWith('9')) clean = '0' + clean;
@@ -421,7 +419,6 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  // 3. Sell CBE Input
   if (step === 'waiting_cbe') {
     const clean = text.replace(/[^0-9]/g, '');
     if (clean.length !== 13 || !clean.startsWith('1000')) {
@@ -442,7 +439,6 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  // 4. Account Name
   if (step === 'waiting_account_name') {
     if (text.length < 3) {
       return ctx.reply(`<tg-emoji emoji-id="6267039884016358504">⚠️</tg-emoji> እባክዎ ትክክለኛ ሙሉ ስም ያስገቡ!`);
@@ -467,7 +463,6 @@ bot.on('text', async (ctx) => {
     return ctx.reply(askNet, { parse_mode: 'HTML', ...netKb });
   }
 
-  // 5. Sell Network Selection
   if (step === 'waiting_sell_network') {
     const sellAmt = user.tempOrder?.amount || 1;
     let promptAddr = '';
@@ -495,7 +490,7 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  // 6. Buy Amount
+  // ==================== 🟢 BUY FLOW (መግዣ) ====================
   if (step === 'waiting_buy_amount') {
     const amount = parseFloat(text);
     if (isNaN(amount) || amount < 1) {
@@ -530,24 +525,24 @@ bot.on('text', async (ctx) => {
     return ctx.reply(askNet, { parse_mode: 'HTML', ...netKb });
   }
 
-  // 7. Buy Network (with 5 USDT minimum check)
   if (step === 'waiting_buy_network') {
     const buyAmt = user.tempOrder?.amount || 0;
-
-    // ⚠️ USDT (BEP-20) ከመረጠ እና መጠኑ ከ 5 USDT በታች ከሆነ የሚሰጥ ማስጠንቀቂያ
-    if (text.includes('USDT') && buyAmt < 5) {
-      return ctx.reply(
-        `<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ይቅርታ፣ በ <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT (BEP-20) ኔትወርክ ዝቅተኛው የመላኪያ መጠን 5 <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT ነው!</b>\n\n` +
-        `<tg-emoji emoji-id="5471895949804575096">💡</tg-emoji> <i>እባክዎ እንደ <b>Binance ID</b> ያሉ ሌሎች አውታሮችን ይምረጡ ወይም ትዕዛዝዎን ሰርዘው መጠኑን ይጨምሩ።</i>`,
-        { parse_mode: 'HTML' }
-      );
-    }
-
     let promptMsg = '';
+
     if (text.includes('Binance ID')) {
       promptMsg = `<tg-emoji emoji-id="5963087638343720061">🆔</tg-emoji> <b>እባክዎ የ Binance Pay ID ቁጥርዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>1197432698</code>`;
     } else if (text.includes('USDT')) {
-      promptMsg = `<tg-emoji emoji-id="5201692367437974073">🔗</tg-emoji> <b>እባክዎ የ USDT (BEP-20) መቀበያ አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>0x71C83920F...</code>`;
+      let warningPrefix = '';
+
+      // መጠኑ ከ 5 USDT በታች ከሆነ ማስጠንቀቂያ ይሰጣል
+      if (buyAmt < 5) {
+        warningPrefix = 
+          `<tg-emoji emoji-id="5447644880824181073">⚠️</tg-emoji> <b>ማስጠንቀቂያ፦ በ <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT (BEP-20) ዝቅተኛው የመላኪያ መጠን 5 <tg-emoji emoji-id="5965043124068687455">💲</tg-emoji> USDT ነው! ከ <tg-emoji emoji-id="5445267414562389170">5️⃣</tg-emoji> USDT በታች የሚገዙ ከሆነ ትዕዛዝዎ በ Admin ውድቅ ይደረጋል!</b>\n\n`;
+      }
+
+      promptMsg = 
+        warningPrefix +
+        `<tg-emoji emoji-id="5201692367437974073">🔗</tg-emoji> <b>እባክዎ የ USDT (BEP-20) መቀበያ አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>0x71C83920F...</code>`;
     } else if (text.includes('TON')) {
       promptMsg = `<tg-emoji emoji-id="5377620962390857342">💎</tg-emoji> <b>እባክዎ የ TON Wallet አድራሻዎን ያስገቡ፡-</b>\n\n<tg-emoji emoji-id="5467538555158943525">💡</tg-emoji> <b>ምሳሌ፦</b> <code>UQCYZuyq...</code>`;
     } else if (text.includes('Aptos')) {
@@ -564,7 +559,7 @@ bot.on('text', async (ctx) => {
     return ctx.reply(promptMsg, { parse_mode: 'HTML', ...cancelKeyboard });
   }
 
-  // 8. Buy Wallet Address -> Sends request to Admin
+  // 👉 ተጠቃሚው መቀበያ Wallet/ID ሲያስገባ፡ ቀጥታ ለ Admin ፍቃድ መጠየቂያ ይላካል
   if (step === 'waiting_wallet_address') {
     const orderId = 'ORD-' + Date.now();
     const buyAmt = user.tempOrder?.amount;
@@ -646,7 +641,7 @@ bot.action(/permit_buy_(.+)/, async (ctx) => {
     `<tg-emoji emoji-id="5965043124068687455">💵</tg-emoji> <b>የሚገዙት መጠን፦</b> <b>${order.amount} USDT</b>\n` +
     `<tg-emoji emoji-id="6266818688905648040">💰</tg-emoji> <b>የሚከፍሉት ጠቅላላ ብር፦</b> <b>${order.totalEtb} ETB</b>\n` +
     `<tg-emoji emoji-id="5445353829304387411">🎯</tg-emoji> <b>መቀበያዎ፦</b> <code>${order.accountOrWallet}</code> (${order.bankOrNetwork})\n\n` +
-    `<tg-emoji emoji-id="5415758949129404605">👉</tg-emoji> <b>እባክዎ ትክክለኛውን ብር ከታች ባሉት አማራጮች ገቢ ያድርጉ፡-</b>\n\n` +
+    `<tg-emoji emoji-id="5373141891321699086">👉</tg-emoji> <b>እባክዎ ትክክለኛውን ብር ከታች ባሉት አማራጮች ገቢ ያድርጉ፡-</b>\n\n` +
     `<tg-emoji emoji-id="5960632377339285724">📱</tg-emoji> <b>Telebirr፦</b> <code>0962963500</code>\n` +
     `<tg-emoji emoji-id="5373012449597335010">👤</tg-emoji> <b>ስም፦</b> <b>Asegidew</b>\n\n` +
     `<tg-emoji emoji-id="5961054379350955385">🏦</tg-emoji> <b>CBE ንግድ ባንክ፦</b> <code>1000764146453</code>\n` +
@@ -703,7 +698,6 @@ async function handleUserScreenshot(ctx, fileId) {
   const temp = user.tempOrder || {};
 
   let order;
-  // ግዢ ከሆነ ቀደም ሲል የተፈጠረውን ትዕዛዝ እናገኛለን
   if (temp.orderType === 'buy' && temp.currentOrderId) {
     order = await Order.findOne({ orderId: temp.currentOrderId });
     if (order) {
@@ -713,7 +707,6 @@ async function handleUserScreenshot(ctx, fileId) {
     }
   }
 
-  // ሽያጭ ከሆነ ወይም አዲስ ከሆነ እዚህ ይፈጠራል
   if (!order) {
     const orderId = 'ORD-' + Date.now();
     order = await Order.create({
